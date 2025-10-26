@@ -1,16 +1,3 @@
--- ================================================================================ --
--- NEORV32 - Minimal Top-Level Wrapper for Basys 3 Board                           --
--- -------------------------------------------------------------------------------- --
--- Optimized for Artix-7 35T (CPG236 package) with only 104 user I/O pins          --
--- This wrapper exposes only the essential external I/O pins                        --
--- AXI4 interface is available internally for NPU connection                        --
--- -------------------------------------------------------------------------------- --
--- Configuration: 64K IMEM, 64K DMEM, UART0, AXI4-Lite for internal NPU             --
--- -------------------------------------------------------------------------------- --
--- The NEORV32 RISC-V Processor - https://github.com/stnolting/neorv32              --
--- Modified for Basys 3 by user - October 2025                                      --
--- ================================================================================ --
-
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -31,8 +18,6 @@ entity neorv32_basys3_top is
     uart0_txd_o : out std_ulogic; -- UART0 send data
     uart0_rxd_i : in  std_ulogic  -- UART0 receive data
 
-    -- Optional: Debug/Status LEDs (if needed)
-    --led_o      : out std_logic_vector(3 downto 0)  -- Status LEDs
   );
 end entity;
 
@@ -124,10 +109,6 @@ architecture rtl of neorv32_basys3_top is
   signal m_axi_bvalid  : std_logic;
   signal m_axi_bready  : std_logic;
 
-  -- Type conversion for UART
-  --signal uart_txd_aux : std_ulogic;
-
-  -- Reset signal (Basys 3 button is active-high, NEORV32 needs active-low)
   signal rstn_internal : std_ulogic;
 
 begin
@@ -335,22 +316,16 @@ begin
     m_axi_bready  => m_axi_bready
   );
 
-  -- TODO: Connect your NPU module here to the m_axi_* signals
+  -- TODO: Connect NPU module here to the m_axi_* signals
   -- For now, tie off AXI4 slave signals to prevent hanging
   m_axi_awready <= '1';
   m_axi_wready  <= '1';
   m_axi_arready <= '1';
   m_axi_rdata   <= (others => '0');
-  m_axi_rresp   <= "00";  -- OKAY
+  m_axi_rresp   <= "00";
   m_axi_rlast   <= '1';
   m_axi_rvalid  <= '0';
-  m_axi_bresp   <= "00";  -- OKAY
+  m_axi_bresp   <= "00";
   m_axi_bvalid  <= '0';
-
-  -- Simple status LEDs
-  --led_o(0) <= '1';  -- Power-on indicator
-  --led_o(1) <= std_logic(uart_txd_aux);  -- TX activity
-  --led_o(2) <= uart_rx_i;  -- RX activity  
-  --led_o(3) <= rstn_i;  -- Reset status
 
 end architecture;
