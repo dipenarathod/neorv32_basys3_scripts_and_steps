@@ -261,7 +261,6 @@ begin
     mext_irq_i     => '0'
   );
 
-  -- Type conversion
 
   -- XBUS to AXI4 Bridge
   xbus_to_axi_bridge: xbus2axi4_bridge
@@ -317,7 +316,6 @@ begin
   );
 
   -- TODO: Connect NPU module here to the m_axi_* signals
-  -- For now, tie off AXI4 slave signals to prevent hanging
   m_axi_awready <= '1';
   m_axi_wready  <= '1';
   m_axi_arready <= '1';
