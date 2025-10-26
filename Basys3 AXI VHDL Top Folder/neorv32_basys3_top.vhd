@@ -315,7 +315,7 @@ begin
     m_axi_bready  => m_axi_bready
   );
 
-  -- TODO: Connect NPU module here to the m_axi_* signals
+  -- TODO: Connect NPU module to AXI Bus
   m_axi_awready <= '1';
   m_axi_wready  <= '1';
   m_axi_arready <= '1';
