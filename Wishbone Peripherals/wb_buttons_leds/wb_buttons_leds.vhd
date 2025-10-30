@@ -46,11 +46,16 @@ begin
   process(clk)
   begin
     if rising_edge(clk) then
-      if reset = '1' then
-        leds_r <= (others => '0');
-      elsif (i_wb_cyc = '1' and i_wb_stb = '1' and i_wb_we = '1'
-             and i_wb_addr = LED_ADDRESS) then
-        leds_r <= i_wb_data(7 downto 0);
+      if reset = '1' then   --Reset = 1 means the device is reset
+                            --The reset of this peripheral is active HIGH (opposite of the NEORV32)
+        leds_r <= (others => '0');  --Clear LEDs value
+      elsif (i_wb_cyc = '1' and     --If cycle is valid (high)
+             i_wb_stb = '1' and     --If strobe is high
+             i_wb_we = '1'  and     --If input write enabled is set (high)
+             i_wb_addr = LED_ADDRESS) --If input address matches defined LED address
+      then
+        leds_r <= i_wb_data(7 downto 0);    --Rewrite LED signal vector with input data
+                                            --Input data is 32-bits. Since we only have 8 LEDs, we only keep the last  8 bits of input data.
       end if;
     end if;
   end process;
@@ -63,15 +68,21 @@ begin
   process(clk)
   begin
     if rising_edge(clk) then
-      if reset = '1' then
+      if reset = '1' then           --If the device is reset, clear button output data to 0
         data_r <= (others => '0');
-      elsif (i_wb_cyc = '1' and i_wb_stb = '1' and i_wb_we = '0') then
-        if i_wb_addr = LED_ADDRESS then
-          data_r <= (31 downto 8 => '0') & leds_r;
-        elsif i_wb_addr = BUTTON_ADDRESS then
-          data_r <= (31 downto 3 => '0') & buttons;
+      elsif (i_wb_cyc = '1' and     --If cycle is valid (high)
+             i_wb_stb = '1' and     --If strobe is high
+             i_wb_we = '0')         --If input write enabled is set (high)
+      then
+        if i_wb_addr = LED_ADDRESS then --If input address matches defined LED address
+          data_r <= (31 downto 8 => '0') & leds_r; --Rewrite data signal vector with LEDs vector
+                                                   --We only have 8 leds, so we only write to the last 8 bits of the data vector
+                                                   --Rest are 0
+        elsif i_wb_addr = BUTTON_ADDRESS then --If input address matches defined button address
+          data_r <= (31 downto 3 => '0') & buttons; --We only have 3 buttons, so we only write data to the last 3 bits of the data vector
+                                                    --buttons has data on what push buttons have been pressed
         else
-          data_r <= (others => '0');
+          data_r <= (others => '0');                --Otherwise, clear the data vector
         end if;
       end if;
     end if;
@@ -85,12 +96,14 @@ begin
   process(clk)
   begin
     if rising_edge(clk) then
-      if reset = '1' then
+      if reset = '1' then   --If the device is reset, set acknowledgement to false
         ack_r <= '0';
       else
-        if (i_wb_cyc = '1' and i_wb_stb = '1'
-            and (i_wb_addr = LED_ADDRESS or i_wb_addr = BUTTON_ADDRESS)) then
-          ack_r <= '1';
+        if (i_wb_cyc = '1' and --If cycle is valid (high)
+            i_wb_stb = '1' and --If strobe is high
+           (i_wb_addr = LED_ADDRESS or i_wb_addr = BUTTON_ADDRESS))     --If input address matches either the LEDs or the buttons
+        then
+          ack_r <= '1'; --Set acknowledgment to true
         else
           ack_r <= '0';
         end if;
@@ -98,6 +111,6 @@ begin
     end if;
   end process;
 
-  o_wb_ack <= ack_r;
+  o_wb_ack <= ack_r;    --wishbone output acknowledgement = acknowledgment value calculated in the acknopwledge process
 
 end architecture;
