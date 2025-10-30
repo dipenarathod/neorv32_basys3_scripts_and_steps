@@ -12,21 +12,21 @@ int main(void) {
   //neorv32_rte_setup();
   neorv32_uart0_setup(19200, 0);
 
-  neorv32_uart0_puts("\n<<< NEORV32 XBUS Peripheral Test >>>\n\n");
+  neorv32_uart0_printf("<<< NEORV32 XBUS Peripheral Test");
   neorv32_uart0_puts("LED Address:    0x90000000\n");
   neorv32_uart0_puts("Button Address: 0x90000004\n\n");
 
-  // Test 1: LED Pattern Test
+  //Test 1: LED Pattern Test
   neorv32_uart0_puts("Test 1: Binary counter on LEDs\n\n");
   
   for (int i = 0; i < 256; i++) {
     led_write((uint8_t)i);
     
-    // Simple delay
+    //delay
     for (volatile uint32_t d = 0; d < 500000; d++);
   }
 
-  // Test 2: Button to LED mapping
+  //Test 2: Button to LED mapping
   neorv32_uart0_puts("Test 2: Press buttons - state shown on LEDs\n");
   neorv32_uart0_puts("Running continuously...\n\n");
   
@@ -35,10 +35,10 @@ int main(void) {
   while (1) {
     button_state = button_read();
     
-    // Display button state on LEDs
+    //Display button state on LEDs
     led_write(button_state);
     
-    // Print when changed
+    /*Print when changed
     if (button_state != last_state) {
       neorv32_uart0_puts("Buttons: 0b");
       for (int j = 2; j >= 0; j--) {
@@ -46,7 +46,7 @@ int main(void) {
       }
       neorv32_uart0_puts(" -> LEDs updated\n");
       last_state = button_state;
-    }
+    }*/
     
     // Debounce delay
     for (volatile uint32_t d = 0; d < 50000; d++);
@@ -56,10 +56,19 @@ int main(void) {
 }
 
 void led_write(uint8_t value) {
-  LED_ADDRESS = (uint32_t)value;
+  LED_ADDRESS = (uint32_t)value;    //We write the integer value at LED address in the peripheral (wishbone handles what to do when 
+                                    //it gets input for LED address)
+                                    //The peripheral checks the lower 8 bits of the 32 bits wishbone input
+                                    //The 8 bits which are set cause the corresponding lights to light up
 }
 
 uint8_t button_read(void) {
   return (uint8_t)(BUTTON_ADDRESS & 0x07);
+  //Button address = 0x90000004
+  //0x90000004 = 0x(28 zeros)0100
+  //0x07 = 0000 0111
+  //The three buttons control the lower 3 bits of the wishbone peripheral output
+  //In 0x07, all lower 3 bits are set. Therefore, performing logical and with it allows us to see what is the status of the three
+  //buttons (pressed or not pressed)
+  //Checking the button address value allows us to get the wishbone data output
 }
-
