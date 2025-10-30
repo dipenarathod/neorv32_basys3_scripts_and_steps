@@ -41,9 +41,9 @@ architecture neorv32_test_setup_bootloader_rtl of neorv32_test_setup_bootloader 
   -- Component declaration
   component wb_buttons_leds
     generic (
-      BASE_ADDRESS    : std_logic_vector(31 downto 0) := x"90000000";
-      LED_ADDRESS     : std_logic_vector(31 downto 0) := x"90000000";
-      BUTTON_ADDRESS  : std_logic_vector(31 downto 0) := x"90000004"
+      BASE_ADDRESS    : std_ulogic_vector(31 downto 0) := x"90000000";
+      LED_ADDRESS     : std_ulogic_vector(31 downto 0) := x"90000000";
+      BUTTON_ADDRESS  : std_ulogic_vector(31 downto 0) := x"90000004"
     );
     port (
       clk        : in  std_ulogic;
@@ -101,7 +101,7 @@ begin
     IO_CLINT_EN      => true,              -- implement core local interruptor (CLINT)?
     IO_UART0_EN      => true,               -- implement primary universal asynchronous receiver/transmitter (UART0)?
     XBUS_EN => true,
-    XBUS_TIMEOUT => 255
+    XBUS_TIMEOUT => 0
 
   )
   port map (
@@ -127,9 +127,14 @@ begin
   );
 
   wb_buttons_leds_inst:wb_buttons_leds
+  generic map(
+      BASE_ADDRESS  => x"90000000",
+      LED_ADDRESS   =>  x"90000000",
+      BUTTON_ADDRESS  => x"90000004"  
+  )
   port map(
     clk=>clk_i,
-    reset=>rstn_internal,
+    reset=>rstn_i,
     i_wb_cyc => xbus_cyc_o,
     i_wb_stb =>xbus_stb_o,
     i_wb_we  => xbus_we_o,
