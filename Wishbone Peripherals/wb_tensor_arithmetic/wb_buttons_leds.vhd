@@ -57,14 +57,14 @@ architecture rtl of wb_peripheral_top is
   type tensor_mem_type is array (0 to TENSOR_WORDS-1) of std_ulogic_vector(31 downto 0);
   --tensor_mem_type is an array of 625 elements, where each element can store 32 bits
   --It is the equivalent of 625 32-bit words = int8 50x50 tensor
-  signal tensor_A : tensor_mem_type := (others => (others => '0')); --tensor operand 1 = tensor A
+  signal tensor_A: tensor_mem_type:= (others => (others => '0')); --tensor operand 1 = tensor A
   --(others => (others => '0')) sets all the elements in the 2D structure to 0
-  signal tensor_B : tensor_mem_type := (others => (others => '0')); --tensor operand 2 = tensor B
-  signal tensor_C : tensor_mem_type := (others => (others => '0')); --tensor operand 3 = tensor C
-  signal tensor_R : tensor_mem_type := (others => (others => '0')); --result tensor
+  signal tensor_B: tensor_mem_type := (others => (others => '0')); --tensor operand 2 = tensor B
+  signal tensor_C: tensor_mem_type := (others => (others => '0')); --tensor operand 3 = tensor C
+  signal tensor_R: tensor_mem_type := (others => (others => '0')); --result tensor
 
   --Control and status registers
-  signal ctrl_reg: std_ulogic_vector(31 downto 0) := (others => '0'); --bit[0] for start
+  signal ctrl_reg: std_ulogic_vector(31 downto 0):= (others => '0');    --bit[0] for start
                                                                         --bit[5:1] for commands -> 2^5 = 32 commands
                                                                         --'00000' for Addition
                                                                         --'00001' for Subtraction
@@ -78,8 +78,8 @@ architecture rtl of wb_peripheral_top is
 
   --Addition operation state machine
   type state_type is (IDLE, PERFORMING_OPERATION, DONE);--Basically an enum. add_state_type can idle, adding, or done with the computation
-  signal state : state_type := IDLE; --Start state is idle
-  signal index : natural range 0 to TENSOR_WORDS-1 := 0; --Number of words left to process in a tensor calculation
+  signal state: state_type := IDLE; --Start state is idle
+  signal index: natural range 0 to TENSOR_WORDS-1 := 0; --Number of words left to process in a tensor calculation
                                                          --Equivalent to a i in for(int i=0; i<TENSOR_WORDS;i++)
                                                          --Use natural range because we do not want negative numbers in range
                                                          --We want non-negative integers
@@ -87,133 +87,13 @@ architecture rtl of wb_peripheral_top is
   --We do not want to restart the computation we have already started. A latch of sorts
   signal start_cmd: std_ulogic := '0';
 
-  --Helper function to add four int8 values packed in 32-bit words
---  function add_packed_int8(a,b,c: std_ulogic_vector(31 downto 0)) --The function takes in 3 32-bit input words. One word from each tensor
---    return std_ulogic_vector is
---    variable result: std_ulogic_vector(31 downto 0);    --Result returned is a 32-bit word
---    variable sum0, sum1, sum2, sum3 : signed(9 downto 0);  --Each sum is 10 bits. The extra buts help in handling overflow
---  begin
---    --Add each byte separately
---    --Convert each byte to a signed 10 bit number
---    --Byte 1 in word: bits[7:0]
---    --Byte 2 in word: bits[15:8]
---    --Byte 3 in word: bits[23:16]
---    --Byte 4 in word: bits[31:24]
---    --":=" is used for variable assignment in a procedure
---    sum0:= resize(signed(a(7 downto 0)),10) + 
---            resize(signed(b(7 downto 0)),10) + 
---            resize(signed(c(7 downto 0)),10);
---    sum1:= resize(signed(a(15 downto 8)),10) + 
---            resize(signed(b(15 downto 8)),10) + 
---            resize(signed(c(15 downto 8)),10);
---    sum2:= resize(signed(a(23 downto 16)),10) + 
---            resize(signed(b(23 downto 16)),10) + 
---            resize(signed(c(23 downto 16)),10);
---    sum3:= resize(signed(a(31 downto 24)),10) + 
---            resize(signed(b(31 downto 24)),10) + 
---            resize(signed(c(31 downto 24)),10);
-
---    --Resize numbers to int8 range (-128 to 127)
---    if(sum0>127) then
---      result(7 downto 0):= std_ulogic_vector(to_signed(127, 8));
---    elsif(sum0 < -128) then
---      result(7 downto 0):= std_ulogic_vector(to_signed(-128, 8));
---    else
---      result(7 downto 0):= std_ulogic_vector(sum0(7 downto 0));
---    end if;
-    
---    --Repeat resizing for the other 3 sums
---    if(sum1>127) then
---      result(15 downto 8):= std_ulogic_vector(to_signed(127, 8));
---    elsif(sum1<-128) then
---      result(15 downto 8):= std_ulogic_vector(to_signed(-128, 8));
---    else
---      result(15 downto 8):= std_ulogic_vector(sum1(7 downto 0));
---    end if;
-
---    if(sum2>127) then
---      result(23 downto 16):= std_ulogic_vector(to_signed(127, 8));
---    elsif(sum2<-128) then
---      result(23 downto 16):= std_ulogic_vector(to_signed(-128, 8));
---    else
---      result(23 downto 16):= std_ulogic_vector(sum2(7 downto 0));
---    end if;
-
---    if(sum3 > 127) then
---      result(31 downto 24):= std_ulogic_vector(to_signed(127, 8));
---    elsif(sum3 < -128) then
---      result(31 downto 24):= std_ulogic_vector(to_signed(-128, 8));
---    else
---      result(31 downto 24):= std_ulogic_vector(sum3(7 downto 0));
---    end if;
-
---    return result; --Return the word sozed result
---  end function;
-
---    function sub_packed_int8(a, b, c: std_ulogic_vector(31 downto 0)) --The function takes in 3 32-bit input words. One word from each tensor
---      return std_ulogic_vector is
---      variable result: std_ulogic_vector(31 downto 0);      --Result returned is a 32-bit word
---      variable diff0, diff1, diff2, diff3 : signed(9 downto 0);     --Each sum is 10 bits. The extra buts help in handling overflow
---    begin
---      --Subtract each byte: A - B - C
---      diff0:= resize(signed(a(7 downto 0)),10) - 
---               resize(signed(b(7 downto 0)),10) - 
---               resize(signed(c(7 downto 0)),10);
---      diff1:= resize(signed(a(15 downto 8)),10) - 
---               resize(signed(b(15 downto 8)),10) - 
---               resize(signed(c(15 downto 8)),10);
---      diff2:= resize(signed(a(23 downto 16)),10) - 
---               resize(signed(b(23 downto 16)),10) - 
---               resize(signed(c(23 downto 16)),10);
---      diff3:= resize(signed(a(31 downto 24)),10) - 
---               resize(signed(b(31 downto 24)),10) - 
---               resize(signed(c(31 downto 24)),10);
-    
-
---    --Resize numbers to int8 range (-128 to 127)
---    if(diff0>127) then
---      result(7 downto 0):= std_ulogic_vector(to_signed(127, 8));
---    elsif(diff0 < -128) then
---      result(7 downto 0):= std_ulogic_vector(to_signed(-128, 8));
---    else
---      result(7 downto 0):= std_ulogic_vector(diff0(7 downto 0));
---    end if;
-    
---    --Repeat resizing for the other 3 sums
---    if(diff1>127) then
---      result(15 downto 8):= std_ulogic_vector(to_signed(127, 8));
---    elsif(diff1<-128) then
---      result(15 downto 8):= std_ulogic_vector(to_signed(-128, 8));
---    else
---      result(15 downto 8):= std_ulogic_vector(diff1(7 downto 0));
---    end if;
-
---    if(diff2>127) then
---      result(23 downto 16):= std_ulogic_vector(to_signed(127, 8));
---    elsif(diff2<-128) then
---      result(23 downto 16):= std_ulogic_vector(to_signed(-128, 8));
---    else
---      result(23 downto 16):= std_ulogic_vector(diff2(7 downto 0));
---    end if;
-
---    if(diff3 > 127) then
---      result(31 downto 24):= std_ulogic_vector(to_signed(127, 8));
---    elsif(diff3 < -128) then
---      result(31 downto 24):= std_ulogic_vector(to_signed(-128, 8));
---    else
---      result(31 downto 24):= std_ulogic_vector(diff3(7 downto 0));
---    end if;
-    
---      return result; --Return the word sozed result
---    end function;
-
   --Address decoder helper
-  function get_tensor_offset(addr : std_ulogic_vector(31 downto 0); 
-                             base : std_ulogic_vector(31 downto 0)) 
+  function get_tensor_offset(addr: std_ulogic_vector(31 downto 0); 
+                             base: std_ulogic_vector(31 downto 0)) 
     return natural is
     variable offset: unsigned (31 downto 0); --Offset is a 32 bit unsigned number
   begin
-    offset := unsigned(addr)- unsigned(base);
+    offset:= unsigned(addr)- unsigned(base);
     return to_integer(offset(11 downto 2));  --Each address is used to address a byte
                                              --0x9000_0000 points to byte A
                                              --0x9000_0001 points ot byte B
@@ -230,18 +110,18 @@ begin
   o_wb_stall <= '0';
 
   --Command edge detection and state machine trigger
-  --This captures the START bit (ctrl_reg[0]) transition to start operation
+  --Capture the START bit (ctrl_reg[0]) transition to start operation
   process(clk)
   begin
     if rising_edge(clk) then
       if reset = '1' then
-        start_cmd <= '0';
+        start_cmd<= '0';
       else
         --Capture START bit when written and operation is idle
-        if (state = IDLE and ctrl_reg(0) = '1') then
-          start_cmd <= '1';
+        if (state=IDLE and ctrl_reg(0)='1') then
+          start_cmd<= '1';
         else
-          start_cmd <= '0';
+          start_cmd<= '0';
         end if;
       end if;
     end if;
@@ -253,13 +133,13 @@ begin
   begin
     if rising_edge(clk) then
       if(reset = '1') then
-        state <= IDLE;
-        index <= 0;
-        status_reg <= (others => '0');
+        state<= IDLE;
+        index<= 0;
+        status_reg<= (others => '0');
       else
         case state is
           when IDLE =>
-            if(start_cmd = '1') then  --Triggered by START bit capture
+            if(start_cmd='1') then  --Triggered by START bit capture
               state<= PERFORMING_OPERATION;
               index<= 0;
               status_reg(0)<= '1';  --Busy flag
@@ -269,14 +149,14 @@ begin
           when PERFORMING_OPERATION =>
             case ctrl_reg(5 downto 1) is
                 when OP_ADD =>
-                  tensor_R(index) <= add_packed_int8(
+                  tensor_R(index)<= add_packed_int8(
                     tensor_A(index), 
                     tensor_B(index), 
                     tensor_C(index)
                   );
                 
                 when OP_SUB =>
-                  tensor_R(index) <= sub_packed_int8(
+                  tensor_R(index)<= sub_packed_int8(
                     tensor_A(index), 
                     tensor_B(index), 
                     tensor_C(index)
@@ -286,13 +166,13 @@ begin
                   --Unsupported operation: fill result with zeros
                   tensor_R(index)<=(others=>'0');
               end case;
-            if(index = TENSOR_WORDS-1) then
+            if(index=TENSOR_WORDS-1) then
                 state<=DONE;
             else
                 index<=index+1;
             end if;
           when DONE =>
-            state <= IDLE;
+            state<= IDLE;
             status_reg(0)<= '0';  --Clear busy flag
             status_reg(1)<= '1';  --Set done flag
         end case;
@@ -309,9 +189,9 @@ begin
 
       if reset = '1' then
 --            leds_r <= (others => '0');
-        ctrl_reg <= (others => '0');
-        dim_reg <= x"00000032";  --Default 50x50 (0x32 = 50)
-      elsif (i_wb_cyc = '1' and i_wb_stb = '1' and i_wb_we = '1') then
+        ctrl_reg<= (others => '0');
+        dim_reg<= x"00000032";  --Default 50x50 (0x32=50 base 10)
+      elsif (i_wb_cyc='1' and i_wb_stb='1' and i_wb_we='1') then
 
         --LED address
 --        if i_wb_addr = LED_ADDRESS then
@@ -320,12 +200,12 @@ begin
         --Control register
         --Software writes 1 to START the operation, can write 0 to clear
 --        elsif i_wb_addr = CTRL_REG_ADDR then
-        if(i_wb_addr = CTRL_REG_ADDRESS) then
-          ctrl_reg <= i_wb_data;
+        if(i_wb_addr=CTRL_REG_ADDRESS) then
+          ctrl_reg<=i_wb_data;
 
         --Dimension register
-        elsif(i_wb_addr = DIM_REG_ADDRESS) then
-          dim_reg <= i_wb_data;
+        elsif(i_wb_addr= DIM_REG_ADDRESS) then
+          dim_reg<=i_wb_data;
 
         --Tensor A
         elsif(unsigned(i_wb_addr)>=unsigned(TENSOR_A_BASE) and 
@@ -355,36 +235,36 @@ begin
     end if;
   end process;
 
---  leds <= leds_r;
+--  leds<= leds_r;
 
   --Read tensor data
   process(clk)
     variable tensor_offset : natural;
   begin
     if rising_edge(clk) then
-      if reset = '1' then
-        data_r <= (others => '0');
-      elsif (i_wb_cyc = '1' and i_wb_stb = '1' and i_wb_we = '0') then
+      if reset= '1' then
+        data_r<= (others => '0');
+      elsif (i_wb_cyc= '1' and i_wb_stb= '1' and i_wb_we= '0') then
 
         --LED address
 --        if i_wb_addr = LED_ADDRESS then
---          data_r <= (31 downto 8 => '0') & leds_r;
+--          data_r<= (31 downto 8 => '0') & leds_r;
 
         --Button address
 --        elsif i_wb_addr = BUTTON_ADDRESS then
---          data_r <= (31 downto 3 => '0') & buttons;
+--          data_r<= (31 downto 3 => '0') & buttons;
 
         --Control register
 --        elsif i_wb_addr = CTRL_REG_ADDR then
-        if(i_wb_addr = CTRL_REG_ADDRESS) then
+        if(i_wb_addr= CTRL_REG_ADDRESS) then
           data_r<=ctrl_reg;
 
         --Status register
-        elsif(i_wb_addr = STATUS_REG_ADDRESS) then
+        elsif(i_wb_addr=STATUS_REG_ADDRESS) then
           data_r<=status_reg;
 
         --Dimension register
-        elsif(i_wb_addr = DIM_REG_ADDRESS) then
+        elsif(i_wb_addr=DIM_REG_ADDRESS) then
           data_r<=dim_reg;
 
         --Tensor A
@@ -443,15 +323,15 @@ begin
   begin
     if rising_edge(clk) then
       if reset = '1' then
-        ack_r <= '0';
+        ack_r<= '0';
       else
         --Check if address is valid
         is_valid_addr := '0';
         if (--i_wb_addr = LED_ADDRESS or 
             --i_wb_addr = BUTTON_ADDRESS or
-            i_wb_addr = CTRL_REG_ADDRESS or
-            i_wb_addr = STATUS_REG_ADDRESS or
-            i_wb_addr = DIM_REG_ADDRESS or
+            i_wb_addr= CTRL_REG_ADDRESS or
+            i_wb_addr= STATUS_REG_ADDRESS or
+            i_wb_addr= DIM_REG_ADDRESS or
             (unsigned(i_wb_addr)>=unsigned(TENSOR_A_BASE) and 
              unsigned(i_wb_addr)<unsigned(TENSOR_A_BASE)+(TENSOR_WORDS*4)) or
             (unsigned(i_wb_addr)>=unsigned(TENSOR_B_BASE) and 
@@ -463,15 +343,15 @@ begin
           is_valid_addr := '1';
         end if;
 
-        if (i_wb_cyc = '1' and i_wb_stb = '1' and is_valid_addr = '1') then
-          ack_r <= '1';
+        if (i_wb_cyc= '1' and i_wb_stb='1' and is_valid_addr='1') then
+          ack_r<= '1';
         else
-          ack_r <= '0';
+          ack_r<= '0';
         end if;
       end if;
     end if;
   end process;
 
-  o_wb_ack <= ack_r;
+  o_wb_ack<= ack_r;
 
 end architecture;
