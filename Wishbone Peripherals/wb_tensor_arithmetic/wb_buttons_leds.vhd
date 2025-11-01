@@ -52,19 +52,19 @@ architecture rtl of wb_peripheral_top is
   --Total words needed per tensor: 2500/4 = 625 words
   --TODO: THE FOLLOWING TWO LINES NEED TO BE MODIFIED WHEN PARAMETERIZING THE FUNCTION TO SUPPORT DIFFERENT SIZE TENSORS
   constant MAX_DIM : natural := 50;
-  constant TENSOR_WORDS : natural := 625;  -- (50*50)/4
+  constant TENSOR_WORDS : natural := 625;  --(50*50)/4
 
   type tensor_mem_type is array (0 to TENSOR_WORDS-1) of std_ulogic_vector(31 downto 0);
   --tensor_mem_type is an array of 625 elements, where each element can store 32 bits
   --It is the equivalent of 625 32-bit words = int8 50x50 tensor
   signal tensor_A : tensor_mem_type := (others => (others => '0')); --tensor operand 1 = tensor A
-  -- (others => (others => '0')) sets all the elements in the 2D structure to 0
+  --(others => (others => '0')) sets all the elements in the 2D structure to 0
   signal tensor_B : tensor_mem_type := (others => (others => '0')); --tensor operand 2 = tensor B
   signal tensor_C : tensor_mem_type := (others => (others => '0')); --tensor operand 3 = tensor C
   signal tensor_R : tensor_mem_type := (others => (others => '0')); --result tensor
 
   --Control and status registers
-  signal ctrl_reg   : std_ulogic_vector(31 downto 0) := (others => '0'); --bit[0] for start
+  signal ctrl_reg: std_ulogic_vector(31 downto 0) := (others => '0'); --bit[0] for start
                                                                         --bit[5:1] for commands -> 2^5 = 32 commands
                                                                         --'00000' for Addition
                                                                         --'00001' for Subtraction
@@ -73,8 +73,8 @@ architecture rtl of wb_peripheral_top is
 --  constant OP_ADD : std_ulogic_vector(4 downto 0) := "00000";  --R = A + B + C
 --  constant OP_SUB : std_ulogic_vector(4 downto 0) := "00001";  --R = A - B - C
 --  --TODO: Add similar codes in the future                                                                  
-  signal status_reg : std_ulogic_vector(31 downto 0) := (others => '0'); --bit[0] for busy. bit[1] for done. TODO: Combine the two into 1?
-  signal dim_reg    : std_ulogic_vector(31 downto 0) := (others => '0');
+  signal status_reg: std_ulogic_vector(31 downto 0) := (others => '0'); --bit[0] for busy. bit[1] for done. TODO: Combine the two into 1?
+  signal dim_reg: std_ulogic_vector(31 downto 0) := (others => '0');
 
   --Addition operation state machine
   type state_type is (IDLE, PERFORMING_OPERATION, DONE);--Basically an enum. add_state_type can idle, adding, or done with the computation
@@ -284,17 +284,17 @@ begin
                 
                 when others =>
                   --Unsupported operation: fill result with zeros
-                  tensor_R(index) <= (others => '0');
+                  tensor_R(index)<=(others=>'0');
               end case;
             if(index = TENSOR_WORDS-1) then
-                state <= DONE;
+                state<=DONE;
             else
-                index <= index + 1;
+                index<=index+1;
             end if;
           when DONE =>
             state <= IDLE;
-            status_reg(0)<= '0';  -- Clear busy flag
-            status_reg(1)<= '1';  -- Set done flag
+            status_reg(0)<= '0';  --Clear busy flag
+            status_reg(1)<= '1';  --Set done flag
         end case;
       end if;
     end if;
@@ -310,7 +310,7 @@ begin
       if reset = '1' then
 --            leds_r <= (others => '0');
         ctrl_reg <= (others => '0');
-        dim_reg <= x"00000032";  -- Default 50x50 (0x32 = 50)
+        dim_reg <= x"00000032";  --Default 50x50 (0x32 = 50)
       elsif (i_wb_cyc = '1' and i_wb_stb = '1' and i_wb_we = '1') then
 
         --LED address
@@ -318,7 +318,7 @@ begin
 --          leds_r <= i_wb_data(7 downto 0);
 
         --Control register
-        -- Software writes 1 to START the operation, can write 0 to clear
+        --Software writes 1 to START the operation, can write 0 to clear
 --        elsif i_wb_addr = CTRL_REG_ADDR then
         if(i_wb_addr = CTRL_REG_ADDRESS) then
           ctrl_reg <= i_wb_data;
@@ -328,29 +328,28 @@ begin
           dim_reg <= i_wb_data;
 
         --Tensor A
-        elsif(unsigned(i_wb_addr) >= unsigned(TENSOR_A_BASE) and 
-              unsigned(i_wb_addr) < unsigned(TENSOR_A_BASE) + (TENSOR_WORDS * 4)) then
-          tensor_offset := get_tensor_offset(i_wb_addr, TENSOR_A_BASE);
-          if tensor_offset < TENSOR_WORDS then
-            tensor_A(tensor_offset) <= i_wb_data;
+        elsif(unsigned(i_wb_addr)>=unsigned(TENSOR_A_BASE) and 
+              unsigned(i_wb_addr)<unsigned(TENSOR_A_BASE)+(TENSOR_WORDS*4)) then
+          tensor_offset:= get_tensor_offset(i_wb_addr, TENSOR_A_BASE);
+          if(tensor_offset<TENSOR_WORDS) then
+            tensor_A(tensor_offset)<=i_wb_data;
           end if;
 
         --Tensor B
-        elsif(unsigned(i_wb_addr) >= unsigned(TENSOR_B_BASE) and 
-              unsigned(i_wb_addr) < unsigned(TENSOR_B_BASE) + (TENSOR_WORDS * 4)) then
-          tensor_offset := get_tensor_offset(i_wb_addr, TENSOR_B_BASE);
-          if(tensor_offset < TENSOR_WORDS) then
-            tensor_B(tensor_offset) <= i_wb_data;
+        elsif(unsigned(i_wb_addr)>=unsigned(TENSOR_B_BASE) and 
+              unsigned(i_wb_addr)<unsigned(TENSOR_B_BASE)+(TENSOR_WORDS*4)) then
+          tensor_offset:= get_tensor_offset(i_wb_addr, TENSOR_B_BASE);
+          if(tensor_offset<TENSOR_WORDS) then
+            tensor_B(tensor_offset)<=i_wb_data;
           end if;
 
         --Tensor C
-        elsif(unsigned(i_wb_addr) >= unsigned(TENSOR_C_BASE) and 
-              unsigned(i_wb_addr) < unsigned(TENSOR_C_BASE) + (TENSOR_WORDS * 4)) then
-          tensor_offset := get_tensor_offset(i_wb_addr, TENSOR_C_BASE);
-          if tensor_offset < TENSOR_WORDS then
-            tensor_C(tensor_offset) <= i_wb_data;
+        elsif(unsigned(i_wb_addr)>=unsigned(TENSOR_C_BASE) and 
+              unsigned(i_wb_addr)<unsigned(TENSOR_C_BASE)+(TENSOR_WORDS*4)) then
+          tensor_offset:= get_tensor_offset(i_wb_addr, TENSOR_C_BASE);
+          if (tensor_offset<TENSOR_WORDS) then
+            tensor_C(tensor_offset)<=i_wb_data;
           end if;
-
         end if;
       end if;
     end if;
@@ -378,57 +377,57 @@ begin
         --Control register
 --        elsif i_wb_addr = CTRL_REG_ADDR then
         if(i_wb_addr = CTRL_REG_ADDRESS) then
-          data_r <= ctrl_reg;
+          data_r<=ctrl_reg;
 
         --Status register
         elsif(i_wb_addr = STATUS_REG_ADDRESS) then
-          data_r <= status_reg;
+          data_r<=status_reg;
 
         --Dimension register
         elsif(i_wb_addr = DIM_REG_ADDRESS) then
-          data_r <= dim_reg;
+          data_r<=dim_reg;
 
         --Tensor A
-        elsif(unsigned(i_wb_addr) >= unsigned(TENSOR_A_BASE) and 
-              unsigned(i_wb_addr) < unsigned(TENSOR_A_BASE) + (TENSOR_WORDS * 4)) then
-          tensor_offset := get_tensor_offset(i_wb_addr, TENSOR_A_BASE);
-          if(tensor_offset < TENSOR_WORDS) then
-            data_r <= tensor_A(tensor_offset);
+        elsif(unsigned(i_wb_addr)>=unsigned(TENSOR_A_BASE) and 
+              unsigned(i_wb_addr)<unsigned(TENSOR_A_BASE) + (TENSOR_WORDS * 4)) then
+          tensor_offset:=get_tensor_offset(i_wb_addr, TENSOR_A_BASE);
+          if(tensor_offset<TENSOR_WORDS) then
+            data_r<=tensor_A(tensor_offset);
           else
-            data_r <= (others => '0');
+            data_r<=(others => '0');
           end if;
 
         --Tensor B
-        elsif(unsigned(i_wb_addr) >= unsigned(TENSOR_B_BASE) and 
-              unsigned(i_wb_addr) < unsigned(TENSOR_B_BASE) + (TENSOR_WORDS * 4)) then
-          tensor_offset := get_tensor_offset(i_wb_addr, TENSOR_B_BASE);
-          if(tensor_offset < TENSOR_WORDS) then
-            data_r <= tensor_B(tensor_offset);
+        elsif(unsigned(i_wb_addr)>=unsigned(TENSOR_B_BASE) and 
+              unsigned(i_wb_addr)<unsigned(TENSOR_B_BASE)+(TENSOR_WORDS*4)) then
+          tensor_offset:= get_tensor_offset(i_wb_addr, TENSOR_B_BASE);
+          if(tensor_offset<TENSOR_WORDS) then
+            data_r<=tensor_B(tensor_offset);
           else
-            data_r <= (others => '0');
+            data_r<=(others=>'0');
           end if;
 
         --Tensor C
-        elsif(unsigned(i_wb_addr) >= unsigned(TENSOR_C_BASE) and 
-              unsigned(i_wb_addr) < unsigned(TENSOR_C_BASE) + (TENSOR_WORDS * 4)) then
+        elsif(unsigned(i_wb_addr)>=unsigned(TENSOR_C_BASE) and 
+              unsigned(i_wb_addr)<unsigned(TENSOR_C_BASE)+(TENSOR_WORDS*4)) then
           tensor_offset := get_tensor_offset(i_wb_addr, TENSOR_C_BASE);
-          if tensor_offset < TENSOR_WORDS then
-            data_r <= tensor_C(tensor_offset);
+          if tensor_offset<TENSOR_WORDS then
+            data_r<=tensor_C(tensor_offset);
           else
-            data_r <= (others => '0');
+            data_r<=(others=>'0');
           end if;
 
         --Tensor R (result)
-        elsif(unsigned(i_wb_addr) >= unsigned(TENSOR_R_BASE) and 
-              unsigned(i_wb_addr) < unsigned(TENSOR_R_BASE) + (TENSOR_WORDS * 4)) then
-          tensor_offset := get_tensor_offset(i_wb_addr, TENSOR_R_BASE);
-          if(tensor_offset < TENSOR_WORDS) then
-            data_r <= tensor_R(tensor_offset);
+        elsif(unsigned(i_wb_addr)>=unsigned(TENSOR_R_BASE) and 
+              unsigned(i_wb_addr)<unsigned(TENSOR_R_BASE)+(TENSOR_WORDS*4)) then
+          tensor_offset:=get_tensor_offset(i_wb_addr, TENSOR_R_BASE);
+          if(tensor_offset<TENSOR_WORDS) then
+            data_r<=tensor_R(tensor_offset);
           else
-            data_r <= (others => '0');
+            data_r<=(others =>'0');
           end if;
         else
-          data_r <= (others => '0');
+          data_r<=(others =>'0');
         end if;
       end if;
     end if;
@@ -446,21 +445,21 @@ begin
       if reset = '1' then
         ack_r <= '0';
       else
-        -- Check if address is valid
+        --Check if address is valid
         is_valid_addr := '0';
         if (--i_wb_addr = LED_ADDRESS or 
             --i_wb_addr = BUTTON_ADDRESS or
             i_wb_addr = CTRL_REG_ADDRESS or
             i_wb_addr = STATUS_REG_ADDRESS or
             i_wb_addr = DIM_REG_ADDRESS or
-            (unsigned(i_wb_addr) >= unsigned(TENSOR_A_BASE) and 
-             unsigned(i_wb_addr) < unsigned(TENSOR_A_BASE) + (TENSOR_WORDS * 4)) or
-            (unsigned(i_wb_addr) >= unsigned(TENSOR_B_BASE) and 
-             unsigned(i_wb_addr) < unsigned(TENSOR_B_BASE) + (TENSOR_WORDS * 4)) or
-            (unsigned(i_wb_addr) >= unsigned(TENSOR_C_BASE) and 
-             unsigned(i_wb_addr) < unsigned(TENSOR_C_BASE) + (TENSOR_WORDS * 4)) or
-            (unsigned(i_wb_addr) >= unsigned(TENSOR_R_BASE) and 
-             unsigned(i_wb_addr) < unsigned(TENSOR_R_BASE) + (TENSOR_WORDS * 4))) then
+            (unsigned(i_wb_addr)>=unsigned(TENSOR_A_BASE) and 
+             unsigned(i_wb_addr)<unsigned(TENSOR_A_BASE)+(TENSOR_WORDS*4)) or
+            (unsigned(i_wb_addr)>=unsigned(TENSOR_B_BASE) and 
+             unsigned(i_wb_addr)<unsigned(TENSOR_B_BASE)+(TENSOR_WORDS*4)) or
+            (unsigned(i_wb_addr)>=unsigned(TENSOR_C_BASE) and 
+             unsigned(i_wb_addr)<unsigned(TENSOR_C_BASE)+(TENSOR_WORDS*4)) or
+            (unsigned(i_wb_addr)>=unsigned(TENSOR_R_BASE) and 
+             unsigned(i_wb_addr)<unsigned(TENSOR_R_BASE)+(TENSOR_WORDS*4))) then
           is_valid_addr := '1';
         end if;
 
