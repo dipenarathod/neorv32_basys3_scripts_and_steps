@@ -67,7 +67,7 @@ void read_matrix_from_peripheral(int8_t* matrix, uint32_t base_addr, uint32_t si
 
 int main() {
     neorv32_uart0_setup(BAUD_RATE, 0);
-    neorv32_uart0_printf("NEORV32 Tensor Peripheral Test");
+    neorv32_uart0_printf("NEORV32 Tensor Peripheral Test\n");
     //Allocate matrices - Static so we only share one copy. Should avoid overflow
     static int8_t matrix_A[MATRIX_SIZE];
     static int8_t matrix_B[MATRIX_SIZE];
