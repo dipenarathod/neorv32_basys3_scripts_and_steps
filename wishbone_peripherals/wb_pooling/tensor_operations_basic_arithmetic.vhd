@@ -2,33 +2,25 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
--- Package: basic arithmetic utilities and common tensor types
--- Packs four int8 values per 32-bit word; includes MAX_DIM and TENSOR_WORDS
 package tensor_operations_basic_arithmetic is
-  -- Operation code constants (5-bit)
-  constant OP_ADD : std_ulogic_vector(4 downto 0) := "00000";  -- R = A + B + C
-  constant OP_SUB : std_ulogic_vector(4 downto 0) := "00001";  -- R = A - B - C
+  --Operation code constants (5-bit)
+  constant OP_ADD : std_ulogic_vector(4 downto 0) := "00000";  --R = A + B + C
+  constant OP_SUB : std_ulogic_vector(4 downto 0) := "00001";  --R = A - B - C
 
-  -- Tensor memory limits and packing
-  constant MAX_DIM     : natural := 28;     -- Reduced from 50 to 28
-  constant TENSOR_WORDS: natural := 196;    -- (28*28)/4 = 196 words
+  --Tensor memory limits and packing
+  constant MAX_DIM     : natural := 28;     --Reduced from 50 to 28
+  constant TENSOR_WORDS: natural := 196;    --(28*28)/4 = 196 words
   type tensor_mem_type is array (0 to TENSOR_WORDS-1) of std_ulogic_vector(31 downto 0);
 
-  -- Optional GEMM scalars
-  type gemm_scalars_type is record
-    alpha : signed(7 downto 0);
-    beta  : signed(7 downto 0);
-  end record;
 
-  -- Compute packed word count for a given dim (dim x dim, 4 elems/word)
+  --Compute packed word count for a given dim (dim x dim, 4 elems/word)
   function calculate_tensor_words(dim: std_ulogic_vector(31 downto 0)) return natural;
 
-  -- Per-word int8 arithmetic (bytewise); truncation to 8b is retained to match existing behavior
+  --Per-word int8 arithmetic (bytewise); truncation to 8b is retained to match existing behavior
   function add_packed_int8(a, b, c: std_ulogic_vector(31 downto 0)) return std_ulogic_vector;
   function sub_packed_int8(a, b, c: std_ulogic_vector(31 downto 0)) return std_ulogic_vector;
 end package tensor_operations_basic_arithmetic;
 
--- tensor_operations_basic_arithmetic.vhd
 package body tensor_operations_basic_arithmetic is
   function calculate_tensor_words(dim: std_ulogic_vector(31 downto 0)) return natural is
     variable dim_int      : natural;
