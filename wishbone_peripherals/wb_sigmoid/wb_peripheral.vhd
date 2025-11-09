@@ -5,7 +5,7 @@ use ieee.numeric_std.all;
 library work;
 use work.tensor_operations_basic_arithmetic.all; --import opcodes/constants and packed int8 add/sub
 use work.tensor_operations_pooling.all;          --import pooling opcodes & helpers (read/max/avg)
-use work.tensor_operations_sigmoid.all;
+use work.tensor_operations_activation.all;
 
 entity wb_peripheral_top is
   generic (
@@ -206,7 +206,7 @@ begin
        when S_OP_CODE_BRANCH =>
           if (op_code_reg = OP_MAXPOOL) or (op_code_reg = OP_AVGPOOL) then
             state <= S_P_READ;
-          elsif(op_code_reg = OP_SIGMOID) then
+          elsif(op_code_reg = OP_SIGMOID) or (op_code_reg = OP_RELU) then
             state <= S_SIG_READ;
           elsif (op_code_reg = OP_ADD) or (op_code_reg = OP_SUB) then
             state <= S_V_READA;
@@ -269,7 +269,11 @@ begin
             state   <= S_SIG_CALC;
             
           when S_SIG_CALC =>
-            r_w_reg <= sigmoid_packed_word(a_w_reg);      --apply sigmoid to word
+            if op_code_reg = OP_RELU then
+              r_w_reg <= relu_packed_word(a_w_reg);
+            else
+              r_w_reg <= sigmoid_packed_word(a_w_reg);      --apply sigmoid to word
+            end if;
             state   <= S_SIG_WRITE;
             
           when S_SIG_WRITE =>
