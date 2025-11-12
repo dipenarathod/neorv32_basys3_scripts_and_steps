@@ -187,20 +187,6 @@ package body Ada_Ml_Library is
       Write_Reg (Addr, Value);
    end Write_Word_In_A;
 
-   function Read_Word_From_A (Index : Natural) return Word is
-      Addr : constant System.Address :=
-        Add_Byte_Offset (ABASE_Addr, Unsigned_32 (Index) * 4);
-   begin
-      return Read_Reg (Addr);
-   end Read_Word_From_A;
-
-   function Read_Word_From_R (Index : Natural) return Word is
-      Addr : constant System.Address :=
-        Add_Byte_Offset (RBASE_Addr, Unsigned_32 (Index) * 4);
-   begin
-      return Read_Reg (Addr);
-   end Read_Word_From_R;
-
    procedure Write_Words_In_A (Src : in Word_Array) is
       J : Natural := 0;
    begin
@@ -209,6 +195,29 @@ package body Ada_Ml_Library is
          J := J + 1;
       end loop;
    end Write_Words_In_A;
+
+   function Read_Word_From_A (Index : Natural) return Word is
+      Addr : constant System.Address :=
+        Add_Byte_Offset (ABASE_Addr, Unsigned_32 (Index) * 4);
+   begin
+      return Read_Reg (Addr);
+   end Read_Word_From_A;
+
+   procedure Read_Words_From_A (Dest : out Word_Array) is
+      J : Natural := 0;
+   begin
+      for I in Dest'Range loop
+         Dest (I) := Read_Word_From_A (J);
+         J := J + 1;
+      end loop;
+   end Read_Words_From_A;
+
+   function Read_Word_From_R (Index : Natural) return Word is
+      Addr : constant System.Address :=
+        Add_Byte_Offset (RBASE_Addr, Unsigned_32 (Index) * 4);
+   begin
+      return Read_Reg (Addr);
+   end Read_Word_From_R;
 
    procedure Read_Words_From_R (Dest : out Word_Array) is
       J : Natural := 0;
@@ -337,22 +346,28 @@ package body Ada_Ml_Library is
    procedure Print_Tensor_Q07
      (Name : String; Data : Word_Array; Dimension : Natural)
    is
-      B0, B1, B2, B3 : Unsigned_Byte := 0; ---Bytes extracted from a word
-      Float_Val      : Float; --Float to store float representation
+      B0, B1, B2, B3  : Unsigned_Byte := 0; ---Bytes extracted from a word
+      Float_Val       : Float; --Float to store float representation
       Last_Word_Index : Natural := Natural'Last; --Index of last word
    begin
-      for Row in 0 .. Dimension - 1 loop  --Traverse rows
+      for Row in 0 .. Dimension - 1 loop
+         --Traverse rows
          Put (" [");
-         for Col in 0 .. Dimension - 1 loop --Traverse columns
+         for Col in 0 .. Dimension - 1 loop
+            --Traverse columns
             declare
-               Index      : constant Natural := Row * Dimension + Col;  --2D index modded to work with 1D representations
+               Index      : constant Natural :=
+                 Row
+                 * Dimension
+                 + Col;  --2D index modded to work with 1D representations
                Word_Index : constant Natural := Index / 4;  --Word index
-               Byte_Sel   : constant Natural := Index mod 4;   --Byte index within word
+               Byte_Sel   : constant Natural :=
+                 Index mod 4;   --Byte index within word
             begin
 
                --if Word_Index /= Last_Word_Index then
-                  Unpack_Four_Bytes (Data (Word_Index), B0, B1, B2, B3);
-                  Last_Word_Index := Word_Index;
+               Unpack_Four_Bytes (Data (Word_Index), B0, B1, B2, B3);
+               Last_Word_Index := Word_Index;
                --end if;
 
                case Byte_Sel is
