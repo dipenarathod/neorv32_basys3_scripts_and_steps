@@ -89,6 +89,16 @@ package body Ada_Ml_Library is
       B3 := Unpack_Byte_At_Index (W, 3);
    end Unpack_Four_Bytes;
 
+   --Get byte from tensor using word and byte index
+   function Get_Byte_From_Tensor
+     (Data : Word_Array; Index : Natural) return Unsigned_Byte
+   is
+      Word_Index : constant Natural := Index / 4;
+      Byte_Index : constant Natural := Index mod 4;
+   begin
+      return Unpack_Byte_At_Index (Data (Word_Index), Byte_Index);
+   end Get_Byte_From_Tensor;
+
    --Word count for a square N×N int8 tensor when 4 int8 are packed per 32-bit word
    function Tensor_Words (N : Natural) return Natural is
       Elements : constant Natural := N * N;
@@ -350,6 +360,7 @@ package body Ada_Ml_Library is
       Float_Val       : Float; --Float to store float representation
       Last_Word_Index : Natural := Natural'Last; --Index of last word
    begin
+      Put_Line (Name);
       for Row in 0 .. Dimension - 1 loop
          --Traverse rows
          Put (" [");
