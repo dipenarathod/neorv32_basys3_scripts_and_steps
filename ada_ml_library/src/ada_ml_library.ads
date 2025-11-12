@@ -60,7 +60,8 @@ package Ada_Ml_Library is
    function Unpack_Byte_At_Index
      (W : Word; Index : Natural) return Unsigned_Byte; --Index 0..3
    procedure Unpack_Four_Bytes (W : Word; B0, B1, B2, B3 : out Unsigned_Byte);
-
+   function Get_Byte_From_Tensor
+     (Data : Word_Array; Index : Natural) return Unsigned_Byte;
    --Word count for a square N×N int8 tensor when 4 int8 are packed per 32-bit word
    function Tensor_Words (N : Natural) return Natural;
 
@@ -87,10 +88,9 @@ package Ada_Ml_Library is
 
    function Read_Word_From_A (Index : Natural) return Word;
    procedure Read_Words_From_A (Dest : out Word_Array);
-   
+
    function Read_Word_From_R (Index : Natural) return Word;
    procedure Read_Words_From_R (Dest : out Word_Array);
-
 
 
    procedure Apply_ReLU_All_Words (N : Natural);
@@ -106,5 +106,6 @@ package Ada_Ml_Library is
    function Int_To_Q07 (Value : Integer) return Unsigned_Byte;
    function Q07_To_Int (Value : Unsigned_Byte) return Integer;
 
-   procedure Print_Tensor_Q07(Name : String; Data : Word_Array; Dimension : Natural);
+   procedure Print_Tensor_Q07
+     (Name : String; Data : Word_Array; Dimension : Natural);
 end Ada_Ml_Library;
