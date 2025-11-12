@@ -83,11 +83,15 @@ package Ada_Ml_Library is
    --procedure Wait_Until_Done;
 
    procedure Write_Word_In_A (Index : Natural; Value : Word);
-   function Read_Word_From_A (Index : Natural) return Word;
-   function Read_Word_From_R (Index : Natural) return Word;
-
    procedure Write_Words_In_A (Src : in Word_Array);
+
+   function Read_Word_From_A (Index : Natural) return Word;
+   procedure Read_Words_From_A (Dest : out Word_Array);
+   
+   function Read_Word_From_R (Index : Natural) return Word;
    procedure Read_Words_From_R (Dest : out Word_Array);
+
+
 
    procedure Apply_ReLU_All_Words (N : Natural);
    procedure Apply_Sigmoid_All_Words (N : Natural);
