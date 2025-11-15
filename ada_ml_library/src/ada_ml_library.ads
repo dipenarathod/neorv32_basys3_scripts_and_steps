@@ -92,9 +92,14 @@ package Ada_Ml_Library is
    function Read_Word_From_R (Index : Natural) return Word;
    procedure Read_Words_From_R (Dest : out Word_Array);
 
-
+   --Activation Functions
    procedure Apply_ReLU_All_Words (N : Natural);
    procedure Apply_Sigmoid_All_Words (N : Natural);
+
+   --2x2 pooling across the entire N×N tensor (stride 2, no padding)
+   --Produces an (N/2)×(N/2) result into R
+   procedure Apply_MaxPool_2x2_All_Words (N : Natural);
+   procedure Apply_AvgPool_2x2_All_words (N : Natural);
 
    procedure Print_Registers;
 
