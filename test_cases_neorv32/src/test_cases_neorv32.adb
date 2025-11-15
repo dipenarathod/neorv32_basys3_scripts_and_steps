@@ -51,7 +51,7 @@ procedure Test_Cases_Neorv32 is
    function Sigmoid_Sw (X : Integer) return Integer is
       Y : Integer := 64 + (X / 4);  --0.5 + x/4 in Q0.7 => 64 + (x>>2)
    begin
-      if(Y < 0) then
+      if (Y < 0) then
          Y := 0;
       elsif (Y > 127) then
          Y := 127;
@@ -68,7 +68,7 @@ procedure Test_Cases_Neorv32 is
       Same  : Boolean := True;
    begin
       Build_Tensor (Words, Tx);
-      Set_Dim (N);
+      --Set_Dim (N);
       Write_Words_In_A (Tx);
       --Not using Read_Words_From_A directly because then words need to be checked individually. Waste of time
       for i in 0 .. Words - 1 loop
@@ -78,8 +78,8 @@ procedure Test_Cases_Neorv32 is
             exit;
          end if;
       end loop;
-      Print_Tensor_Q07 (Name => "Input Tensor", Data => Tx, Dimension => N);
-      Print_Tensor_Q07 (Name => "Read Tensor", Data => Rx, Dimension => N);
+      -- Print_Tensor_Q07 (Name => "Input Tensor", Data => Tx, Dimension => N);
+      -- Print_Tensor_Q07 (Name => "Read Tensor", Data => Rx, Dimension => N);
       Print_Result ("Words written == words read from A", Same);
    end Test_A_Window_Echo_4x4;
 
@@ -95,7 +95,7 @@ procedure Test_Cases_Neorv32 is
         (0, 7, 15, 31, 48, 63);
    begin
       Build_Tensor (Words, Src);
-      Set_Dim (N);
+      --Set_Dim (N);
       Write_Words_In_A (Src);
       Apply_ReLU_All_Words (N);
       Read_Words_From_R (Out_Word_Tensor);
@@ -114,9 +114,9 @@ procedure Test_Cases_Neorv32 is
             end if;
          end;
       end loop;
-      Print_Tensor_Q07 (Name => "Input Tensor", Data => Src, Dimension => N);
-      Print_Tensor_Q07
-        (Name => "Result ReLU 8x8", Data => Out_Word_Tensor, Dimension => N);
+      -- Print_Tensor_Q07 (Name => "Input Tensor", Data => Src, Dimension => N);
+      -- Print_Tensor_Q07
+      --   (Name => "Result ReLU 8x8", Data => Out_Word_Tensor, Dimension => N);
       Print_Result ("ReLU 8x8 samples match", OK);
    end Test_ReLU_8x8;
 
@@ -131,7 +131,7 @@ procedure Test_Cases_Neorv32 is
         (0, 7, 15, 31, 48, 63);
    begin
       Build_Tensor (Words, Src);
-      Set_Dim (N);
+      --Set_Dim (N);
       Write_Words_In_A (Src);
       Apply_Sigmoid_All_Words (N);
       Read_Words_From_R (Out_Word_Tensor);
@@ -144,17 +144,17 @@ procedure Test_Cases_Neorv32 is
             A_i : constant Integer := Q07_To_Int (A_b);
             R_i : constant Integer := Q07_To_Int (R_b);
          begin
-            if(R_i /= Sigmoid_Sw (A_i)) then
+            if (R_i /= Sigmoid_Sw (A_i)) then
                OK := False;
                exit;
             end if;
          end;
       end loop;
-      Print_Tensor_Q07 (Name => "Input Tensor", Data => Src, Dimension => N);
-      Print_Tensor_Q07
-        (Name      => "Result Sigmoid 8x8",
-         Data      => Out_Word_Tensor,
-         Dimension => N);
+      -- Print_Tensor_Q07 (Name => "Input Tensor", Data => Src, Dimension => N);
+      -- Print_Tensor_Q07
+      --   (Name      => "Result Sigmoid 8x8",
+      --    Data      => Out_Word_Tensor,
+      --    Dimension => N);
       Print_Result ("Sigmoid 8x8 samples match", OK);
    end Test_Sigmoid_8x8;
 
@@ -169,7 +169,7 @@ procedure Test_Cases_Neorv32 is
         (0, 9, 24, 50, 75, 99);
    begin
       Build_Tensor (Words, Src);
-      Set_Dim (N);
+      --Set_Dim (N);
       Write_Words_In_A (Src);
       Apply_ReLU_All_Words (N);
       Read_Words_From_R (Out_Word_Tensor);
@@ -182,17 +182,215 @@ procedure Test_Cases_Neorv32 is
             A_i : constant Integer := Q07_To_Int (A_b);
             R_i : constant Integer := Q07_To_Int (R_b);
          begin
-            if(R_i /= ReLU_Sw (A_i)) then
+            if (R_i /= ReLU_Sw (A_i)) then
                OK := False;
                exit;
             end if;
          end;
       end loop;
-      Print_Tensor_Q07 (Name => "Input Tensor", Data => Src, Dimension => N);
-      Print_Tensor_Q07
-        (Name => "Result ReLU 10x10", Data => Out_Word_Tensor, Dimension => N);
+      --Print_Tensor_Q07 (Name => "Input Tensor", Data => Src, Dimension => N);
+      -- Print_Tensor_Q07
+      --   (Name => "Result ReLU 10x10", Data => Out_Word_Tensor, Dimension => N);
       Print_Result ("ReLU 10x10 samples match", OK);
    end Test_ReLU_10x10;
+
+   --5) Test 2x2 MaxPool on a hard-coded 4x4 tensor
+   procedure Test_MaxPool_2x2_8x8 is
+      N        : constant Natural := 8;
+      Words_A  : constant Natural := Tensor_Words (N);
+      --Hard-coded 8x8 tensor (row-major), int8 values mapped to Q0.7
+      --Rows:
+      --[  4,   8,  -12,  -4,   4,  8,  -12,  -4]
+      --[  0,   4,   8,   12,   0,  4,   8,   12]
+      --[ -16, -12,  16,  20, -16, -12,  16,  20]
+      --[  -8,  -4,  24,  28,  -8,  -4,  24,  28]
+      --[ 120, 121,  64, 127, 120, 121,  64,  127]
+      --[ 80,   81,  75,  82,  80,  81,  75,  82]
+      --[ 90,   84,  74,  28, -90, -84, -74, -28]
+      --[  8,   -4, -24,  -8. -80, -81, -75, -82]
+      A_Tensor : constant Word_Array (0 .. Words_A - 1) :=
+        (0  =>
+           Pack_Four_Bytes
+             (Int_To_Q07 (4),
+              Int_To_Q07 (8),
+              Int_To_Q07 (-12),
+              Int_To_Q07 (-4)),
+         1  =>
+           Pack_Four_Bytes
+             (Int_To_Q07 (4),
+              Int_To_Q07 (8),
+              Int_To_Q07 (-12),
+              Int_To_Q07 (-4)),
+         2  =>
+           Pack_Four_Bytes
+             (Int_To_Q07 (0), Int_To_Q07 (4), Int_To_Q07 (8), Int_To_Q07 (12)),
+         3  =>
+           Pack_Four_Bytes
+             (Int_To_Q07 (0), Int_To_Q07 (4), Int_To_Q07 (8), Int_To_Q07 (12)),
+         4  =>
+           Pack_Four_Bytes
+             (Int_To_Q07 (-16),
+              Int_To_Q07 (-12),
+              Int_To_Q07 (16),
+              Int_To_Q07 (20)),
+         5  =>
+           Pack_Four_Bytes
+             (Int_To_Q07 (-16),
+              Int_To_Q07 (-12),
+              Int_To_Q07 (16),
+              Int_To_Q07 (20)),
+         6  =>
+           Pack_Four_Bytes
+             (Int_To_Q07 (-8),
+              Int_To_Q07 (-4),
+              Int_To_Q07 (24),
+              Int_To_Q07 (28)),
+         7  =>
+           Pack_Four_Bytes
+             (Int_To_Q07 (-8),
+              Int_To_Q07 (-4),
+              Int_To_Q07 (24),
+              Int_To_Q07 (28)),
+         8  =>
+           Pack_Four_Bytes
+             (Int_To_Q07 (120),
+              Int_To_Q07 (121),
+              Int_To_Q07 (64),
+              Int_To_Q07 (127)),
+         9  =>
+           Pack_Four_Bytes
+             (Int_To_Q07 (120),
+              Int_To_Q07 (121),
+              Int_To_Q07 (64),
+              Int_To_Q07 (127)),
+         10 =>
+           Pack_Four_Bytes
+             (Int_To_Q07 (80),
+              Int_To_Q07 (81),
+              Int_To_Q07 (75),
+              Int_To_Q07 (82)),
+         11 =>
+           Pack_Four_Bytes
+             (Int_To_Q07 (80),
+              Int_To_Q07 (81),
+              Int_To_Q07 (75),
+              Int_To_Q07 (82)),
+         12 =>
+           Pack_Four_Bytes
+             (Int_To_Q07 (90),
+              Int_To_Q07 (84),
+              Int_To_Q07 (74),
+              Int_To_Q07 (28)),
+         13 =>
+           Pack_Four_Bytes
+             (Int_To_Q07 (-90),
+              Int_To_Q07 (-84),
+              Int_To_Q07 (-74),
+              Int_To_Q07 (-28)),
+         14 =>
+           Pack_Four_Bytes
+             (Int_To_Q07 (8),
+              Int_To_Q07 (-4),
+              Int_To_Q07 (-24),
+              Int_To_Q07 (-8)),
+         15 =>
+           Pack_Four_Bytes
+             (Int_To_Q07 (-80),
+              Int_To_Q07 (-81),
+              Int_To_Q07 (-75),
+              Int_To_Q07 (-82)));
+      Out_N    : constant Natural := N / 2; --Resulting tensor dimensions
+      Words_R  : constant Natural := Tensor_Words (Out_N); --Words in tensor R
+      R_Tensor : Word_Array (0 .. Words_R - 1) := (others => 0);
+      OK       : Boolean := True;
+
+      --Expected MaxPool 4x4 result:
+      Expected : constant array (Natural range 0 .. 15) of Integer :=
+        (8, 12, 8, 12, -4, 28, -4, 28, 121, 127, 121, 127, 90, 74, -80, -28);
+   begin
+      Set_Dim (N);
+      Write_Words_In_A (A_Tensor);
+      Apply_MaxPool_2x2_All_Words (N);
+      Read_Words_From_R (R_Tensor);
+
+      --Verify all 16 outputs
+      for index in 0 .. 15 loop
+         declare
+            rb : constant Unsigned_Byte :=
+              Get_Byte_From_Tensor (R_Tensor, index);
+            ri : constant Integer := Q07_To_Int (rb);
+         begin
+            if (ri /= Expected (index)) then
+               OK := False;
+               exit;
+            end if;
+         end;
+      end loop;
+
+      Print_Tensor_Q07 ("Input 8x8", A_Tensor, N);
+      Print_Tensor_Q07 ("MaxPool 2x2 -> 4x4", R_Tensor, Out_N);
+      Print_Result ("MaxPool 2x2 on hard-coded 8x8", OK);
+   end Test_MaxPool_2x2_8x8;
+
+   --6) Test 2x2 AvgPool on the same hard-coded 4x4 tensor
+   procedure Test_AvgPool_2x2_4x4 is
+      N        : constant Natural := 4;
+      Words_A  : constant Natural := Tensor_Words (N);
+      A_Tensor : constant Word_Array (0 .. Words_A - 1) :=
+        (0 =>
+           Pack_Four_Bytes
+             (Int_To_Q07 (4),
+              Int_To_Q07 (8),
+              Int_To_Q07 (-12),
+              Int_To_Q07 (-4)),
+         1 =>
+           Pack_Four_Bytes
+             (Int_To_Q07 (0), Int_To_Q07 (4), Int_To_Q07 (8), Int_To_Q07 (12)),
+         2 =>
+           Pack_Four_Bytes
+             (Int_To_Q07 (-16),
+              Int_To_Q07 (-12),
+              Int_To_Q07 (16),
+              Int_To_Q07 (20)),
+         3 =>
+           Pack_Four_Bytes
+             (Int_To_Q07 (-8),
+              Int_To_Q07 (-4),
+              Int_To_Q07 (24),
+              Int_To_Q07 (28)));
+      Out_N    : constant Natural := N / 2; --2
+      Words_R  : constant Natural := Tensor_Words (Out_N); --1
+      R_Tensor : Word_Array (0 .. Words_R - 1) := (others => 0);
+      OK       : Boolean := True;
+
+      --Expected AvgPool 2x2 result (exact sums/4): [[4,1], [-10,22]]
+      Expected : constant array (Natural range 0 .. 3) of Integer :=
+        (4, 1, -10, 22);
+   begin
+      Set_Dim (N);
+      Write_Words_In_A (A_Tensor);
+      Apply_AvgPool_2x2_All_Words (N);
+      Read_Words_From_R (R_Tensor);
+
+      --Verify all 4 outputs
+      for index in 0 .. 3 loop
+         declare
+            rb : constant Unsigned_Byte :=
+              Get_Byte_From_Tensor (R_Tensor, index);
+            ri : constant Integer := Q07_To_Int (rb);
+         begin
+            if (ri /= Expected (index)) then
+               OK := False;
+               exit;
+            end if;
+         end;
+      end loop;
+
+      Print_Tensor_Q07 ("Input 4x4", A_Tensor, N);
+      Print_Tensor_Q07 ("AvgPool 2x2 -> 2x2", R_Tensor, Out_N);
+      Print_Result ("AvgPool 2x2 on hard-coded 4x4", OK);
+   end Test_AvgPool_2x2_4x4;
+
 
 begin
    Uart0.Init (19200);
@@ -201,6 +399,8 @@ begin
    Test_ReLU_8x8;
    Test_Sigmoid_8x8;
    Test_ReLU_10x10;
+   Test_MaxPool_2x2_8x8;
+   Test_AvgPool_2x2_4x4;
    Put_Line ("Tests Done-------------------------");
    loop
       null;
