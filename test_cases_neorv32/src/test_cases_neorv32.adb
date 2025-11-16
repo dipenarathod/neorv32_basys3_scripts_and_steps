@@ -83,6 +83,40 @@ procedure Test_Cases_Neorv32 is
       Print_Result ("Words written == words read from A", Same);
    end Test_A_Window_Echo_4x4;
 
+   --Invalid opcode should keep R unchanged
+   procedure Test_Invalid_Opcode_Result is
+      N                  : constant Natural := 4;
+      Words              : constant Natural := Tensor_Words (N);
+      Invalid_Opcode     : constant Word := 99;
+      OB0, OB1, OB2, OB3 : Unsigned_Byte :=
+        0; --Bytes extracted from a word (original R)
+      B0, B1, B2, B3     : Unsigned_Byte := 0; --Bytes extracted from a word
+      Original           : Word_Array (0 .. Words - 1) := (others => 0);
+      Rx                 : Word_Array (0 .. Words - 1) := (others => 0);
+      OK                 : Boolean := True;
+   begin
+      Read_Words_From_R (Original);
+      Set_Dim (N);
+      Perform_Op (Invalid_Opcode);
+      Wait_While_Busy;
+      Write_Reg (CTRL_Addr, 0); --De-assert start
+      Read_Words_From_R (Rx);
+      for I in Rx'Range loop
+         Unpack_Four_Bytes
+           (Original (i), B0 => OB0, B1 => OB1, B2 => OB2, B3 => OB3);
+         Unpack_Four_Bytes
+           (W => Rx (i), B0 => B0, B1 => B1, B2 => B2, B3 => B3);
+         if (B0 /= OB0 or B1 /= OB1 or B2 /= OB2 or B3 /= OB3) then
+            OK := False;
+            exit;
+         end if;
+      end loop;
+      --Print_Tensor_Q07 ("Original Result Tesnsor", Original, N);
+      --Print_Tensor_Q07 ("Result Tensor", Rx, N);
+      Print_Result ("Invalid opcode should keeps R unchanged", OK);
+   end Test_Invalid_Opcode_Result;
+
+
    --2)Test ReLU in 8x8 on some values
    procedure Test_ReLU_8x8 is
       N               : constant Natural := 8;
@@ -363,7 +397,7 @@ procedure Test_Cases_Neorv32 is
       R_Tensor : Word_Array (0 .. Words_R - 1) := (others => 0);
       OK       : Boolean := True;
 
-      --Expected AvgPool 2x2 result (exact sums/4): [[4,1], [-10,22]]
+      --Expected AvgPool 2x2 result
       Expected : constant array (Natural range 0 .. 3) of Integer :=
         (4, 1, -10, 22);
    begin
@@ -396,6 +430,7 @@ begin
    Uart0.Init (19200);
    Put_Line ("Reunning Test Cases----------------");
    Test_A_Window_Echo_4x4;
+   Test_Invalid_Opcode_Result;
    Test_ReLU_8x8;
    Test_Sigmoid_8x8;
    Test_ReLU_10x10;
