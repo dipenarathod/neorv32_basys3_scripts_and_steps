@@ -39,10 +39,12 @@ package Ada_Ml_Library is
 
    --Opcodes
    --00 and 01 are reserved for add/sub, which are not used
-   OP_MAX  : constant Word := 16#02#; --Max pooling
-   OP_AVG  : constant Word := 16#03#; --Average pooling
-   OP_SIG  : constant Word := 16#04#; --Sigmoid activation
-   OP_RELU : constant Word := 16#05#; --ReLU activation
+   OP_MAX             : constant Word := 16#02#; --Max pooling
+   OP_AVG             : constant Word := 16#03#; --Average pooling
+   OP_SIG             : constant Word := 16#04#; --Sigmoid activation
+   OP_RELU            : constant Word := 16#05#; --ReLU activation
+   OP_NOP             : constant Word := 16#31#; --NOP
+   MAX_ALLOWED_OPCODE : constant Word := 31;  --Largest opcode possible
 
    --CTRL/STATUS bit masks
    Perform_Bit  : constant Word := 1;      --CTRL[0]
