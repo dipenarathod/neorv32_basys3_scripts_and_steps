@@ -36,6 +36,9 @@ entity wb_peripheral_top is
 end entity;
 
 architecture rtl of wb_peripheral_top is
+ 
+  constant OP_NOP : std_ulogic_vector(4 downto 0) := "11111";
+  
   --Wishbone readback data and ack register
   signal data_r : std_ulogic_vector(31 downto 0) := (others => '0');
   signal ack_r  : std_ulogic := '0';
@@ -204,7 +207,9 @@ begin
           read_idx    <= (others => '0');  --start 2x2 sweep at top-left
           state <= S_OP_CODE_BRANCH;
        when S_OP_CODE_BRANCH =>
-          if (op_code_reg = OP_MAXPOOL) or (op_code_reg = OP_AVGPOOL) then
+          if (op_code_reg = OP_NOP) then
+            state <= S_DONE;
+          elsif (op_code_reg = OP_MAXPOOL) or (op_code_reg = OP_AVGPOOL) then
             state <= S_P_READ;
           elsif(op_code_reg = OP_SIGMOID) or (op_code_reg = OP_RELU) then
             state <= S_ACT_READ;
