@@ -137,10 +137,17 @@ package body Ada_Ml_Library is
 
    --Perform operation
    procedure Perform_Op (Opcode : Word) is
-      Val : constant Word :=
-        Shift_Left (Opcode, Opcode_Shift)
-        or Perform_Bit;   --Need to set perform bit to actually perform an operation
+      Final_Opcode : Word := Opcode;
+      Val          : Word;
    begin
+      --If input opcode > max allowed opcode, change opcode to nop
+      --Unused opcodes are handled by VHDL
+      if (Final_Opcode > MAX_ALLOWED_OPCODE) then
+         Final_Opcode := OP_NOP;
+      end if;
+
+      Val := Shift_Left (Final_Opcode, Opcode_Shift) or Perform_Bit;
+
       Write_Reg (CTRL_Addr, Val);
    end Perform_Op;
 
@@ -277,10 +284,10 @@ package body Ada_Ml_Library is
       for r in 0 .. Out_N - 1 loop
          for c in 0 .. Out_N - 1 loop
             Base := (2 * r) * N + (2 * c);     --top-left of 2x2 window in A
-                                               -- '*2' because stride = 2
-                                               -- '*N' to make it a flat index.
+            -- '*2' because stride = 2
+            -- '*N' to make it a flat index.
             Out_Index := r * Out_N + c;        --flat index into R
-                                               -- '*Out_N' to make it a flat index
+            -- '*Out_N' to make it a flat index
             Set_Pool_Base_Index (Base);
             Set_Pool_Out_Index (Out_Index);
             Perform_Max_Pool;
@@ -301,10 +308,10 @@ package body Ada_Ml_Library is
       for r in 0 .. Out_N - 1 loop
          for c in 0 .. Out_N - 1 loop
             Base := (2 * r) * N + (2 * c);     --top-left of 2x2 window in A
-                                               -- '*2' because stride = 2
-                                               -- '*N' to make it a flat index.
+            -- '*2' because stride = 2
+            -- '*N' to make it a flat index.
             Out_Index := r * Out_N + c;        --flat index into R
-                                               -- '*Out_N' to make it a flat index
+            -- '*Out_N' to make it a flat index
             Set_Pool_Base_Index (Base);
             Set_Pool_Out_Index (Out_Index);
             Perform_Avg_Pool;
@@ -406,7 +413,7 @@ package body Ada_Ml_Library is
    procedure Print_Tensor_Q07
      (Name : String; Data : Word_Array; Dimension : Natural)
    is
-      B0, B1, B2, B3  : Unsigned_Byte := 0; ---Bytes extracted from a word
+      B0, B1, B2, B3  : Unsigned_Byte := 0; --Bytes extracted from a word
       Float_Val       : Float; --Float to store float representation
       Last_Word_Index : Natural := Natural'Last; --Index of last word
    begin
