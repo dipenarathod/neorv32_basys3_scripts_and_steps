@@ -19,7 +19,7 @@ entity wb_peripheral_top is
     DIM_REG_ADDRESS         : std_ulogic_vector(31 downto 0) := x"90000010"; --N (LSB 8 bits)
     POOL_BASE_INDEX_ADDRESS : std_ulogic_vector(31 downto 0) := x"90000014"; --top-left idx in A
     POOL_OUT_INDEX_ADDRESS  : std_ulogic_vector(31 downto 0) := x"90000018"; --out idx in R
-    WORD_INDEX_ADDRESS      : std_ulogic_vector(31 downto 0) := x"9000001C"  --word index for OP_ADD/OP_SUB
+    WORD_INDEX_ADDRESS      : std_ulogic_vector(31 downto 0) := x"9000001C"  --word index for tensor indexing. What word in the word array are we interested in?
   );
   port (
     clk        : in  std_ulogic;                    --system clock
@@ -63,10 +63,12 @@ architecture rtl of wb_peripheral_top is
   signal word_index_reg  : std_ulogic_vector(31 downto 0) := (others => '0'); --packed word index
 
   --Start edge detection (one-cycle pulse)
+  --ctrlo0 prev is introduced to ensure a new command is not triggered every cycle (when ctrl is set). Look at the process below for the actual logic
   signal start_cmd : std_ulogic := '0';
   signal ctrl0_prev : std_ulogic := '0';
 
   --Muxed write paths for DIM (allowing bus or internal updates)
+  --Will be useful when there is a dedicated pooling/conv unit
   signal bus_dim_we    : std_ulogic := '0';
   signal bus_dim_data  : std_ulogic_vector(7 downto 0) := (others => '0');
   signal pool_dim_we   : std_ulogic := '0';
@@ -114,7 +116,7 @@ architecture rtl of wb_peripheral_top is
   signal op_code_reg : std_ulogic_vector(4 downto 0) := (others => '0'); --opcode field
   signal base_i_reg  : unsigned(15 downto 0) := (others => '0');        --pooling base index
   signal out_i_reg   : unsigned(15 downto 0) := (others => '0');        --pooling output index
-  signal din_reg     : unsigned(7 downto 0)  := (others => '0');        --N
+  signal din_reg     : unsigned(7 downto 0)  := (others => '0');        --N (tensor side length)
   signal word_i_reg  : unsigned(15 downto 0) := (others => '0');        --packed word index
 
   --Pooling datapath registers (2x2 window and result)
@@ -134,6 +136,7 @@ begin
   dim_side_len_bus <= (31 downto 8 => '0') & dim_side_len_8;
 
   --Generate a one-cycle start pulse when start=1 and not busy
+  --Only trigger an operation (start_cmd =1) when ctrl(0) is transitioning to 1 for the first time and the status(0) reg = 0 (not busy)
   process(clk)
   begin
     if rising_edge(clk) then
@@ -155,10 +158,10 @@ begin
   begin
     if rising_edge(clk) then
       if reset = '1' then
-        dim_side_len_8 <= x"1C"; --default N=28
+        dim_side_len_8 <= x"1C"; --default N=28. TODO: Use N=50 in the future
       else
         if pool_dim_we = '1' then
-          dim_side_len_8 <= pool_dim_data; --internal update path (currently unused)
+          dim_side_len_8 <= pool_dim_data; --TODO: When there is a dedicated pooling unit with variable window sizes
         elsif bus_dim_we = '1' then
           dim_side_len_8 <= bus_dim_data;  --bus write-update
         end if;
@@ -184,8 +187,10 @@ begin
         din_reg    <= (others => '0');
         word_i_reg <= (others => '0');
         r8_reg     <= (others => '0');
-        a_w_reg <= (others => '0'); b_w_reg <= (others => '0');
-        c_w_reg <= (others => '0'); r_w_reg <= (others => '0');
+        a_w_reg <= (others => '0'); 
+        b_w_reg <= (others => '0');
+        c_w_reg <= (others => '0'); 
+        r_w_reg <= (others => '0');
         pool_dim_we <= '0';
       else
         pool_dim_we <= '0';
@@ -198,7 +203,7 @@ begin
               state <= S_CAPTURE;               --capture parameters
             end if;
         when S_CAPTURE =>
-          status_reg(0) <= '1';
+          status_reg(0) <= '1'; --The NPU is marked busy once the capture stage begins. The capture stage sets up everything (all registers) for the following states
           op_code_reg <= ctrl_reg(5 downto 1);
           din_reg     <= unsigned(dim_side_len_8);
           base_i_reg  <= unsigned(pool_base_index(15 downto 0));
@@ -206,7 +211,7 @@ begin
           word_i_reg  <= unsigned(word_index_reg(15 downto 0));
           read_idx    <= (others => '0');  --start 2x2 sweep at top-left
           state <= S_OP_CODE_BRANCH;
-       when S_OP_CODE_BRANCH =>
+       when S_OP_CODE_BRANCH => --If-else
           if (op_code_reg = OP_NOP) then
             state <= S_DONE;
           elsif (op_code_reg = OP_MAXPOOL) or (op_code_reg = OP_AVGPOOL) then
@@ -228,6 +233,8 @@ begin
               end case;
             
               --Decode packed word and byte lane
+              --Word index doesn't care for the byte offset. We just need the word number in the word array (tensor)                                                   
+              --The last two bits of elem_index tell what byte in the word we are looking for (00, 01, 10, 11) or (0, 1, 2, 3)                                                   
               word_idx := to_integer(elem_index(15 downto 2));
               byte_sel := to_integer(elem_index(1 downto 0));
               packed_word := tensor_A(word_idx);
@@ -238,7 +245,7 @@ begin
                 when others => sel_byte := packed_word(31 downto 24);
               end case;
             
-              --Store into the appropriate corner register
+              --Store into the appropriate register
               case read_idx is
                 when "00" => num00_reg <= signed(sel_byte);
                 when "01" => num01_reg <= signed(sel_byte);
@@ -286,6 +293,7 @@ begin
             state <= S_DONE;
           
           --Vector path: read packed A/B/C words at word_i_reg
+          --Not used because they were only for testing.
           when S_V_READA =>
             a_w_reg <= tensor_A(to_integer(word_i_reg));
             state <= S_V_READB;
@@ -312,7 +320,7 @@ begin
             tensor_R(to_integer(word_i_reg)) <= r_w_reg;
             state <= S_DONE;
 
-          --Finalize: clear busy, set done, return to IDLE
+          --Calculation completedd: clear busy, set done, return to IDLE
           when S_DONE =>
             status_reg(0) <= '0';
             status_reg(1) <= '1';
@@ -322,7 +330,8 @@ begin
     end if;
   end process;
 
-  --Wishbone write path: decode addresses, update regs and tensor windows
+  --Wishbone write path: decode addresses, update regs, and tensor windows
+  --Read/write logic is very similar. 
   process(clk)
     variable tensor_offset: natural; --word offset inside a tensor window
   begin
@@ -441,7 +450,7 @@ begin
     end if;
   end process;
 
-  --Wishbone ACK generation: assert for valid mapped regions during active bus cycles
+  --Wishbone ACK generation: assert for valid mapped registers (and memory regions) addresses during active bus cycles
   process(clk)
     variable is_valid: std_ulogic; --address decode result
   begin
