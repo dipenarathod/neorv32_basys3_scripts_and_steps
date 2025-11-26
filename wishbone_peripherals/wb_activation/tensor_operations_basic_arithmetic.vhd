@@ -14,11 +14,6 @@ package tensor_operations_basic_arithmetic is
   constant TENSOR_WORDS: natural := 196;    -- (28*28)/4 = 196 words
   type tensor_mem_type is array (0 to TENSOR_WORDS-1) of std_ulogic_vector(31 downto 0);
 
-  -- Optional GEMM scalars
-  type gemm_scalars_type is record
-    alpha : signed(7 downto 0);
-    beta  : signed(7 downto 0);
-  end record;
 
   -- Compute packed word count for a given dim (dim x dim, 4 elems/word)
   function calculate_tensor_words(dim: std_ulogic_vector(31 downto 0)) return natural;
