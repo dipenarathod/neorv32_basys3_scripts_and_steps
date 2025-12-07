@@ -266,14 +266,49 @@ procedure Test_Cases_Neorv32 is
    end Test_Sigmoid_8x8;
 
    --4) Test ReLU on a larger tensor to show logic works for tensors larger than 8x8
-      procedure Test_ReLU_16x16 is
-      N               : constant Natural := 16;
+        procedure Test_ReLU_16x16 is
+        N               : constant Natural := 16;
+        Words           : constant Natural := Tensor_Words (N);
+        Src             : Word_Array (0 .. Words - 1) := (others => 0);
+        Out_Word_Tensor : Word_Array (0 .. Words - 1) := (others => 0);
+        OK              : Boolean := True;
+        Samples         : constant array (Natural range <>) of Natural :=
+          (0, 90, 124, 220);
+     begin
+        Build_Tensor (Words, Src);
+        --Set_Dim (N);
+        Write_Words_In_A (Src);
+        Start_Cycles := Read_Cycle;
+        Apply_ReLU_All_Words (N);
+        End_Cycles := Read_Cycle;
+        Delta_Cycles := End_Cycles - Start_Cycles;
+        Print_Time ("Time taken to apply 16x16 ReLU to A:", Delta_Cycles);
+        Read_Words_From_R (Out_Word_Tensor);
+
+        for S of Samples loop
+           declare
+              A_b : constant Unsigned_Byte := Get_Byte_From_Tensor (Src, S);
+              R_b : constant Unsigned_Byte :=
+                Get_Byte_From_Tensor (Out_Word_Tensor, S);
+              A_i : constant Integer := Q07_To_Int (A_b);
+              R_i : constant Integer := Q07_To_Int (R_b);
+           begin
+              if (R_i /= ReLU_Sw (A_i)) then
+                 OK := False;
+                 exit;
+              end if;
+           end;
+        end loop;
+        --  Print_Tensor_Q07 (Name => "Input Tensor", Data => Src, Dimension => N);
+        --  Print_Tensor_Q07
+        --    (Name => "Result ReLU 16x16", Data => Out_Word_Tensor, Dimension => N);
+        Print_Result ("ReLU 16x16 samples match", OK);
+     end Test_ReLU_16x16;
+
+   procedure Test_ReLU_NxN_Timings(Dim : Natural)  is
+      N               : constant Natural := Dim;
       Words           : constant Natural := Tensor_Words (N);
       Src             : Word_Array (0 .. Words - 1) := (others => 0);
-      Out_Word_Tensor : Word_Array (0 .. Words - 1) := (others => 0);
-      OK              : Boolean := True;
-      Samples         : constant array (Natural range <>) of Natural :=
-        (0, 90, 124, 220);
    begin
       Build_Tensor (Words, Src);
       --Set_Dim (N);
@@ -282,67 +317,8 @@ procedure Test_Cases_Neorv32 is
       Apply_ReLU_All_Words (N);
       End_Cycles := Read_Cycle;
       Delta_Cycles := End_Cycles - Start_Cycles;
-      Print_Time ("Time taken to apply 16x16 ReLU to A:", Delta_Cycles);
-      Read_Words_From_R (Out_Word_Tensor);
-
-      for S of Samples loop
-         declare
-            A_b : constant Unsigned_Byte := Get_Byte_From_Tensor (Src, S);
-            R_b : constant Unsigned_Byte :=
-              Get_Byte_From_Tensor (Out_Word_Tensor, S);
-            A_i : constant Integer := Q07_To_Int (A_b);
-            R_i : constant Integer := Q07_To_Int (R_b);
-         begin
-            if (R_i /= ReLU_Sw (A_i)) then
-               OK := False;
-               exit;
-            end if;
-         end;
-      end loop;
-      --  Print_Tensor_Q07 (Name => "Input Tensor", Data => Src, Dimension => N);
-      --  Print_Tensor_Q07
-      --    (Name => "Result ReLU 16x16", Data => Out_Word_Tensor, Dimension => N);
-      Print_Result ("ReLU 16x16 samples match", OK);
-   end Test_ReLU_16x16;
-
-   procedure Test_ReLU_28x28 is
-      N               : constant Natural := 28;
-      Words           : constant Natural := Tensor_Words (N);
-      Src             : Word_Array (0 .. Words - 1) := (others => 0);
-      Out_Word_Tensor : Word_Array (0 .. Words - 1) := (others => 0);
-      OK              : Boolean := True;
-      Samples         : constant array (Natural range <>) of Natural :=
-        (0, 90, 124, 250, 375, 499);
-   begin
-      Build_Tensor (Words, Src);
-      --Set_Dim (N);
-      Write_Words_In_A (Src);
-      Start_Cycles := Read_Cycle;
-      Apply_ReLU_All_Words (N);
-      End_Cycles := Read_Cycle;
-      Delta_Cycles := End_Cycles - Start_Cycles;
-      Print_Time ("Time taken to apply 28x28 ReLU to A:", Delta_Cycles);
-      Read_Words_From_R (Out_Word_Tensor);
-
-      for S of Samples loop
-         declare
-            A_b : constant Unsigned_Byte := Get_Byte_From_Tensor (Src, S);
-            R_b : constant Unsigned_Byte :=
-              Get_Byte_From_Tensor (Out_Word_Tensor, S);
-            A_i : constant Integer := Q07_To_Int (A_b);
-            R_i : constant Integer := Q07_To_Int (R_b);
-         begin
-            if (R_i /= ReLU_Sw (A_i)) then
-               OK := False;
-               exit;
-            end if;
-         end;
-      end loop;
-      --Print_Tensor_Q07 (Name => "Input Tensor", Data => Src, Dimension => N);
-      --Print_Tensor_Q07
-      --  (Name => "Result ReLU 28x28", Data => Out_Word_Tensor, Dimension => N);
-      Print_Result ("ReLU 28x28 samples match", OK);
-   end Test_ReLU_28x28;
+      Print_Time ("Time taken to apply " & Natural'Image(N) & "x" & Natural'Image(N) & "ReLU to A:", Delta_Cycles);
+   end Test_ReLU_NxN_Timings;
 
    --5) Test 2x2 MaxPool on a hard-coded 4x4 tensor
    procedure Test_MaxPool_2x2_8x8 is
@@ -549,27 +525,28 @@ procedure Test_Cases_Neorv32 is
       Print_Result ("AvgPool 2x2 on hard-coded 4x4", OK);
    end Test_AvgPool_2x2_4x4;
 
-procedure Test_MaxPool_2x2_16x16_Timings is
-      N               : constant Natural := 16;
-      Words           : constant Natural := Tensor_Words (N);
-      Src             : Word_Array (0 .. Words - 1) := (others => 0);
-      Out_Word_Tensor : Word_Array (0 .. Words - 1) := (others => 0);
-   begin
-      Build_Tensor (Words, Src);
-      --Set_Dim (N);
-      Write_Words_In_A (Src);
-      Start_Cycles := Read_Cycle;
-      Apply_MaxPool_2x2_All_Words (N);
-      End_Cycles := Read_Cycle;
-      Delta_Cycles := End_Cycles - Start_Cycles;
-      Print_Time ("Time taken to apply 16x16 MaxPool 2x2 to A:", Delta_Cycles);
-   end Test_MaxPool_2x2_16x16_Timings;
+--  procedure Test_MaxPool_2x2_16x16_Timings is
+--        N               : constant Natural := 16;
+--        Words           : constant Natural := Tensor_Words (N);
+--        Src             : Word_Array (0 .. Words - 1) := (others => 0);
+--        Out_Word_Tensor : Word_Array (0 .. Words - 1) := (others => 0);
+--     begin
+--        Build_Tensor (Words, Src);
+--        --Set_Dim (N);
+--        Write_Words_In_A (Src);
+--        Start_Cycles := Read_Cycle;
+--        Apply_MaxPool_2x2_All_Words (N);
+--        End_Cycles := Read_Cycle;
+--        Delta_Cycles := End_Cycles - Start_Cycles;
+--        Print_Time ("Time taken to apply 16x16 MaxPool 2x2 to A:", Delta_Cycles);
+--     end Test_MaxPool_2x2_16x16_Timings;
 
-procedure Test_MaxPool_2x2_28x28_Timings is
-      N               : constant Natural := 28;
+procedure Test_MaxPool_2x2_NxN_Timings(Dim : Natural) is
+      N               : constant Natural := Dim;
       Words           : constant Natural := Tensor_Words (N);
       Src             : Word_Array (0 .. Words - 1) := (others => 0);
       Out_Word_Tensor : Word_Array (0 .. Words - 1) := (others => 0);
+      Out_N    : constant Natural := N / 2;
    begin
       Build_Tensor (Words, Src);
       --Set_Dim (N);
@@ -578,8 +555,11 @@ procedure Test_MaxPool_2x2_28x28_Timings is
       Apply_MaxPool_2x2_All_Words (N);
       End_Cycles := Read_Cycle;
       Delta_Cycles := End_Cycles - Start_Cycles;
-      Print_Time ("Time taken to apply 28x28 MaxPool 2x2 to A:", Delta_Cycles);
-   end Test_MaxPool_2x2_28x28_Timings;
+      Print_Time ("Time taken to apply "& Natural'Image(N) & "x" & Natural'Image(N) & " MaxPool 2x2 to A:", Delta_Cycles);
+      --  Read_Words_From_R (Out_Word_Tensor);
+      --  Print_Tensor_Q07 ("Input 28x28", Src, N);
+      --  Print_Tensor_Q07 ("MaxPool 2x2 -> 14x14", Out_Word_Tensor, Out_N);
+   end Test_MaxPool_2x2_NxN_Timings;
 
 begin
    Uart0.Init (19200);
@@ -589,11 +569,23 @@ begin
    Test_ReLU_8x8;
    Test_Sigmoid_8x8;
    Test_ReLU_16x16;
-   Test_ReLU_28x28;
+   --Test_ReLU_NxN_Timings (4);
+   --Test_ReLU_NxN_Timings (8);
+   --Test_ReLU_NxN_Timings (12);
+   --Test_ReLU_NxN_Timings (16);
+   --Test_ReLU_NxN_Timings (20);
+   --Test_ReLU_NxN_Timings (24);
+   --Test_ReLU_NxN_Timings (28);
    Test_MaxPool_2x2_8x8;
    Test_AvgPool_2x2_4x4;
-   Test_MaxPool_2x2_16x16_Timings;
-   Test_MaxPool_2x2_28x28_Timings;
+   --Test_MaxPool_2x2_16x16_Timings;
+   --Test_MaxPool_2x2_NxN_Timings(4);
+   --Test_MaxPool_2x2_NxN_Timings(8);
+   --Test_MaxPool_2x2_NxN_Timings(12);
+   --Test_MaxPool_2x2_NxN_Timings(16);
+   --Test_MaxPool_2x2_NxN_Timings(20);
+   --Test_MaxPool_2x2_NxN_Timings(24);
+   --Test_MaxPool_2x2_NxN_Timings(28);
    Put_Line ("Tests Done-------------------------");
    loop
       null;
