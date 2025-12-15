@@ -26,7 +26,7 @@ package body Ada_Ml_Library is
 
    --Add byte offset to an address
    --Refer https://learn.adacore.com/courses/intro-to-embedded-sys-prog/chapters/interacting_with_devices.html
-   --System.address is a private type, amking address math possible only via System.Storage_Elements
+   --System.address is a private type, making address math possible only via System.Storage_Elements
    --Pg 385 for address arithmetic: http://www.ada-auth.org/standards/22rm/RM-Final.pdf
    function Add_Byte_Offset
      (Address : System.Address; Offset : Unsigned_32) return System.Address is
@@ -49,7 +49,7 @@ package body Ada_Ml_Library is
       return Word (R32 (Addr).all);
    end Read_Reg;
 
-   --PAck four 8 bits into a 32-bit word
+   --Pack four 8 bits into a 32-bit word
    function Pack_Four_Bytes (B0, B1, B2, B3 : Unsigned_Byte) return Word is
       U0 : constant Word := Word (Unsigned_32 (B0));
       U1 : constant Word := Word (Unsigned_32 (B1));
@@ -135,6 +135,18 @@ package body Ada_Ml_Library is
       Write_Reg (WORDI_Addr, Word (Unsigned_32 (Index)));
    end Set_Word_Index;
 
+   --Set softmax mode: 0=EXP phase, 1=DIV phase
+   procedure Set_Softmax_Mode (Mode : Word) is
+   begin
+      Write_Reg (SOFTMAX_MODE_Addr, Mode);
+   end Set_Softmax_Mode;
+
+   --Set sum parameter for softmax DIV phase (Ada calculates sum)
+   procedure Set_Sum_Param (Sum : Word) is
+   begin
+      Write_Reg (SUM_Addr, Sum);
+   end Set_Sum_Param;
+
    --Perform operation
    procedure Perform_Op (Opcode : Word) is
       Final_Opcode : Word := Opcode;
@@ -171,6 +183,12 @@ package body Ada_Ml_Library is
       Perform_Op (OP_RELU);
    end Perform_ReLU;
 
+   --Softmax operation (mode flag controls EXP vs DIV phase)
+   procedure Perform_Softmax is
+   begin
+      Perform_Op (OP_SOFTMAX);
+   end Perform_Softmax;
+
    --"/=" is the inequality operator in Ada, not !=
    --Read status_reg[0]
    function Is_Busy return Boolean is
@@ -191,7 +209,6 @@ package body Ada_Ml_Library is
          null;
       end loop;
    end Wait_While_Busy;
-
 
    --Each word is 4 bytes apart
    --Base address + index * 4 = actual index of word
@@ -247,7 +264,7 @@ package body Ada_Ml_Library is
 
 
    --Procedures to Apply ReLU and Sigmoid
-   --Translatied test C code
+   --Translated test C code
    --Sigmoid and ReLU are very similar (because they are activation functions)
    procedure Apply_ReLU_All_Words (N : Natural) is
       Words : constant Natural := Tensor_Words (N);
@@ -321,6 +338,61 @@ package body Ada_Ml_Library is
       end loop;
    end Apply_AvgPool_2x2_All_Words;
 
+   --Apply Softmax to entire N×N tensor using two-pass algorithm
+   --Pass 1: Compute exponents for all elements (NPU writes to A in-place)
+   --Pass 2: Ada calculates sum (inverted sum), then VHDL divides each element by sum
+   procedure Apply_Softmax_All_Words (N : Natural) is
+      Words          : constant Natural := Tensor_Words (N);
+      Sum            : Unsigned_32 := 0;
+      Inverted_Sum   : Unsigned_32;
+      W              : Word;
+      B0, B1, B2, B3 : Unsigned_Byte;
+   begin
+      --Pass 1: Compute exponents (VHDL writes to A in-place)
+      Set_Softmax_Mode (SOFTMAX_MODE_EXP);  --Set mode to EXP
+
+      for I in 0 .. Words - 1 loop
+         Set_Word_Index (I);
+         Perform_Softmax;
+         Wait_While_Busy;
+         Write_Reg (CTRL_Addr, 0); --De-assert start
+      end loop;
+
+      --Calculate sum here because mantaing an automatic sum register (accumulator) in the NPU is difficult
+      --If the NPU accumulates the sum, then we have multiple drivers problems as the Ada program needs to reset the sum
+      --It is also expensive from an LUT usage/inelegant to put sum reg write in the NPU FSM
+      for I in 0 .. Words - 1 loop
+         W := Read_Word_From_A (I);
+         Unpack_Four_Bytes (W, B0, B1, B2, B3);
+         Sum :=
+           Sum
+           + Unsigned_32 (B0)
+           + Unsigned_32 (B1)
+           + Unsigned_32 (B2)
+           + Unsigned_32 (B3);
+      end loop;
+
+      --Calculate inverted sum: (2^16) / sum
+      --This allows hardware to do fast multiplication instead of division
+      if Sum > 0 then
+         Inverted_Sum :=
+           (2**16) / Sum;  --Fixed-point reciprocal scaled by 2^16
+      --else
+      --   Inverted_Sum := 16#FFFF#;  --Max value if sum is somehow zero
+
+      end if;
+
+      --Pass 2: Provide inverted sum to hardware for multiplication-based division
+      Set_Sum_Param (Word (Inverted_Sum));  --Write inverted sum parameter
+      Set_Softmax_Mode (SOFTMAX_MODE_DIV); --Set mode to DIV
+
+      for I in 0 .. Words - 1 loop
+         Set_Word_Index (I);
+         Perform_Softmax;
+         Wait_While_Busy;
+         Write_Reg (CTRL_Addr, 0); --De-assert start
+      end loop;
+   end Apply_Softmax_All_Words;
 
    --Print current register values to understand what is going on
    --should be useful (or not)
@@ -362,9 +434,8 @@ package body Ada_Ml_Library is
       end if;
    end Q07_To_Float;
 
-
    --Float should be [-1, 0.992) or [-1,1)
-   --In signed int, -128 to 127. Mutliply by 128 to convert float to int8 and then uint8
+   --In signed int, -128 to 127. Multiply by 128 to convert float to int8 and then uint8
    --We need to use a normal int because * 128 makes it cross the limits -128 and 127
    --We can clamp this to -128 to 127. Similar logic to clipping in NumPy for quantization.
    --Float -> int8 -> uint8
@@ -385,7 +456,7 @@ package body Ada_Ml_Library is
    end Float_To_Q07;
 
 
-   --int8 -> unit8
+   --int8 -> uint8
    function Int_To_Q07 (Value : Integer) return Unsigned_Byte is
    begin
       if (Value <= -128) then
@@ -399,7 +470,7 @@ package body Ada_Ml_Library is
       end if;
    end Int_To_Q07;
 
-   --unit8 -> int8
+   --uint8 -> int8
    function Q07_To_Int (Value : Unsigned_Byte) return Integer is
       Byte_Val : constant Unsigned_8 := Unsigned_8 (Value);
    begin
