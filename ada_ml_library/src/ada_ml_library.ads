@@ -17,24 +17,28 @@ package Ada_Ml_Library is
 
    --Address is a type in Ada
    --Register addresses
-   CTRL_Addr   : constant System.Address :=
+   CTRL_Addr         : constant System.Address :=
      System'To_Address
        (16#90000008#); --Control register. [0]= start flag. [5:1]=opcode
-   STATUS_Addr : constant System.Address :=
+   STATUS_Addr       : constant System.Address :=
      System'To_Address
        (16#9000000C#); --Status register. [0] = busy. [1] = done
-   DIM_Addr    : constant System.Address :=
+   DIM_Addr          : constant System.Address :=
      System'To_Address
        (16#90000010#); --Address to store dimensions(side length) of square tensor
-   BASEI_Addr  : constant System.Address :=
+   BASEI_Addr        : constant System.Address :=
      System'To_Address (16#90000014#); --top-left idx in A
-   OUTI_Addr   : constant System.Address :=
+   OUTI_Addr         : constant System.Address :=
      System'To_Address (16#90000018#); --out idx in R
-   WORDI_Addr  : constant System.Address :=
-     System'To_Address (16#9000001C#); --word index for OP_ADD/OP_SUB
-   ABASE_Addr  : constant System.Address :=
+   WORDI_Addr        : constant System.Address :=
+     System'To_Address (16#9000001C#); --word index for operations
+   SUM_Addr          : constant System.Address :=
+     System'To_Address (16#90000020#); --Softmax sum parameter (write-only)
+   SOFTMAX_MODE_Addr : constant System.Address :=
+     System'To_Address (16#90000024#); --Softmax mode: 0=EXP, 1=DIV
+   ABASE_Addr        : constant System.Address :=
      System'To_Address (16#90001000#); --Tensor A address
-   RBASE_Addr  : constant System.Address :=
+   RBASE_Addr        : constant System.Address :=
      System'To_Address (16#90004000#); --Tensor R(result) address
 
    --Opcodes
@@ -43,8 +47,14 @@ package Ada_Ml_Library is
    OP_AVG             : constant Word := 16#03#; --Average pooling
    OP_SIG             : constant Word := 16#04#; --Sigmoid activation
    OP_RELU            : constant Word := 16#05#; --ReLU activation
+   OP_SOFTMAX         : constant Word :=
+     16#06#; --Softmax (mode flag controls EXP vs DIV)
    OP_NOP             : constant Word := 16#31#; --NOP
    MAX_ALLOWED_OPCODE : constant Word := 31;  --Largest opcode possible
+
+   --Softmax mode values
+   SOFTMAX_MODE_EXP : constant Word := 0; --Exponent phase
+   SOFTMAX_MODE_DIV : constant Word := 1; --Division phase
 
    --CTRL/STATUS bit masks
    Perform_Bit  : constant Word := 1;      --CTRL[0]
@@ -72,6 +82,9 @@ package Ada_Ml_Library is
    procedure Set_Pool_Base_Index (Index : Natural); --pooling index in A
    procedure Set_Pool_Out_Index (Index : Natural); --pooling index in R
    procedure Set_Word_Index (Index : Natural);
+   procedure Set_Softmax_Mode (Mode : Word);  --Set softmax mode (0=EXP, 1=DIV)
+   procedure Set_Sum_Param
+     (Sum : Word);      --Set sum parameter for softmax DIV phase
 
    --Operation control
    procedure Perform_Op (Opcode : Word);
@@ -79,6 +92,7 @@ package Ada_Ml_Library is
    procedure Perform_Avg_Pool;
    procedure Perform_Sigmoid;
    procedure Perform_ReLU;
+   procedure Perform_Softmax;
 
    function Is_Busy return Boolean;
    function Is_Done return Boolean;
@@ -97,6 +111,7 @@ package Ada_Ml_Library is
    --Activation Functions
    procedure Apply_ReLU_All_Words (N : Natural);
    procedure Apply_Sigmoid_All_Words (N : Natural);
+   procedure Apply_Softmax_All_Words (N : Natural);
 
    --2x2 pooling across the entire N×N tensor (stride 2, no padding)
    --Produces an (N/2)×(N/2) result into R
@@ -115,4 +130,5 @@ package Ada_Ml_Library is
 
    procedure Print_Tensor_Q07
      (Name : String; Data : Word_Array; Dimension : Natural);
+
 end Ada_Ml_Library;
