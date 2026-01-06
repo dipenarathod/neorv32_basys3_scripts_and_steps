@@ -1,5 +1,4 @@
 - ada_ml_library: Ada library wrapper to use hardware NPU functions + helper functions to beautify data
 - test_Cases_neorv32: Ada Test cases file for NEORV32
 - mnist_test: Python model for MNIST digit dataset
-- wishbone_peripherals: Wishbone Peripherals
--- (Only care for) wb_activation: ReLU, Sigmoid, 2x2 Maxpooling, and 2x2 AvgPooling 
+- wishbone_peripherals: NPUs with various layers
