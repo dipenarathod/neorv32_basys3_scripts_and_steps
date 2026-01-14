@@ -57,8 +57,7 @@ entity neorv32_ECP5EVN_BoardTop_MinimalBoot is
     -- UART0
     ECP5EVN_RX : in  std_logic;
     ECP5EVN_TX : out std_logic;
-	clk_p  : in std_logic;  -- 200 MHz LVDS +
-    clk_n  : in std_logic  -- 200 MHz LVDS -
+    clk_200 : in std_logic  -- 200 MHz LVDS clock (P pin)
   );
 end entity;
 
@@ -66,29 +65,36 @@ architecture neorv32_ECP5EVN_BoardTop_MinimalBoot_rtl of neorv32_ECP5EVN_BoardTo
 
   -- configuration --
   -- clock frequency in Hz (now 100 MHz system clock)
-  constant f_clock_c : natural := 100000000;
+  constant f_clock_c : natural := 12_000_000;
 
   -- internal IO connection --
   signal con_pwm    : std_ulogic_vector(2 downto 0);
   signal con_gpio_o : std_ulogic_vector(3 downto 0);
 
   -- PLL and clocking --
-  signal clk_sys    : std_logic;  -- 100 MHz system clock from PLL
-  signal pll_locked : std_logic;
-  signal rstn_sync  : std_logic;
-  signal clk_200 : std_logic;
-signal clk_100 : std_logic := '0';
+  --signal clk_sys    : std_logic;  -- 100 MHz system clock from PLL
+  --signal pll_locked : std_logic;
+  --signal rstn_sync  : std_logic;
+--signal clk_200 : std_logic;
+--signal clk_100 : std_logic := '0';
+signal clk_sys : std_logic;
 
 begin
+--u_pll_3 : entity work.pll_3
+--  port map (
+--    pll_neorv32_inst_CLKI  => clk_200,  -- 200 MHz LVDS from Y19/W20
+--    pll_neorv32_inst_CLKOP => clk_sys   -- PLL output clock
+--  );
 
-process(clk_200)
-begin
-  if rising_edge(clk_200) then
-    clk_100 <= not clk_100;
-  end if;
-end process;
-  -- combine external reset with PLL lock
-  rstn_sync <= ECP5EVN_RST_N and pll_locked;
+--process(clk_200)
+--begin
+--  if rising_edge(clk_200) then
+--    clk_100 <= not clk_100;
+--  end if;
+--end process;
+
+-- combine external reset with PLL lock
+  -- rstn_sync <= ECP5EVN_RST_N and pll_locked;
 
   -- The core of the problem ----------------------------------------------------------------
   -- ----------------------------------------------------------------------------------------
@@ -100,18 +106,18 @@ end process;
   )
   port map (
     -- Global control --
-    clk_i  => std_ulogic(clk_100),
-    rstn_i => std_ulogic(rstn_sync),
+    clk_i  => std_ulogic(ECP5EVN_CLK),
+    rstn_i => std_ulogic(ECP5EVN_RST_N),
 
     -- GPIO --
-    gpio_o     => con_gpio_o,
+    --gpio_o     => con_gpio_o,
 
     -- primary UART --
     uart_txd_o => ECP5EVN_TX, -- UART0 send data
-    uart_rxd_i => ECP5EVN_RX, -- UART0 receive data
+    uart_rxd_i => ECP5EVN_RX -- UART0 receive data
 
     -- PWM (to on-board RGB LED) --
-    pwm_o      => con_pwm
+    --pwm_o      => con_pwm
   );
 
   -- IO Connection --------------------------------------------------------------------------
@@ -126,4 +132,3 @@ end process;
   ECP5EVN_LED7 <= con_pwm(2);
 
 end architecture;
-
