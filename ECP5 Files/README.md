@@ -1,1 +1,1 @@
-Files associate with setting up a Diamond project
+Files associated with setting up a Diamond project
