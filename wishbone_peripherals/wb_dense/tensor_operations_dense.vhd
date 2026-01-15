@@ -29,16 +29,16 @@ Package tensor_operations_dense Is
 	--First part of requantization: get 64-bit product
 	--Based on GEMMlowp's guide
 	Function dense_requantize_product(
-		accumulator  						: signed(31 Downto 0); 
-		bias								: signed(31 Downto 0);
-		quantized_multiplier 				: signed(31 Downto 0)
-	) return signed;
-	
+		accumulator          : signed(31 Downto 0);
+		bias                 : signed(31 Downto 0);
+		quantized_multiplier : signed(31 Downto 0)
+	) Return signed;
+
 	--Second part of requantization: round and shift 64-bit product
 	Function dense_requantize_clamp(
-		product  								: signed(63 Downto 0);
-		quantized_multiplier_right_shift	: unsigned(7 Downto 0)
-	) return signed ;
+		product                          : signed(63 Downto 0);
+		quantized_multiplier_right_shift : unsigned(7 Downto 0)
+	) Return signed;
 
 	--Add bias to accumulated result and saturate to Q0.7 range
 	--Not used in favor of requantization
@@ -89,13 +89,13 @@ Package Body tensor_operations_dense Is
 		weight_zero_point : signed(7 Downto 0);
 		valid_lanes       : Natural Range 1 To 4
 	) Return signed Is
-		Variable a0, a1, a2, a3 					: signed(7 Downto 0);
-		Variable w0, w1, w2, w3 					: signed(7 Downto 0);
-		Variable w_zp_9								: signed(8 downto 0);
-		Variable w0_adj, w1_adj, w2_adj, w3_adj 	: signed(8 Downto 0);
-		Variable p0, p1, p2, p3 					: signed(16 Downto 0);
-		Variable sum_products 						: signed(31 Downto 0);
-		Variable result 							: signed(31 Downto 0);
+		Variable a0, a1, a2, a3 : signed(7 Downto 0);
+		Variable w0, w1, w2, w3 : signed(7 Downto 0);
+		Variable w_zp_9 : signed(8 Downto 0);
+		Variable w0_adj, w1_adj, w2_adj, w3_adj : signed(8 Downto 0);
+		Variable p0, p1, p2, p3 : signed(16 Downto 0);
+		Variable sum_products : signed(31 Downto 0);
+		Variable result : signed(31 Downto 0);
 	Begin
 		--Extract lane bytes
 		a0 := extract_byte_from_word(input_word, 0);
@@ -104,24 +104,24 @@ Package Body tensor_operations_dense Is
 		a3 := extract_byte_from_word(input_word, 3);
 		--Equation 5 from GEMMLowp: result_quantized_value = result_zero_point +
 		--(lhs_scale * rhs_scale / result_scale) *
-        --Sum_over_i(
-        --    (lhs_quantized_value[i] - lhs_zero_point) *
-        --    (rhs_quantized_value[i] - rhs_zero_point)
-        --)                                                  (5)
+		--Sum_over_i(
+		--    (lhs_quantized_value[i] - lhs_zero_point) *
+		--    (rhs_quantized_value[i] - rhs_zero_point)
+		--)                                                  (5)
 		--LHS = input matrix is assumed to already be in Q0.7 scale with a zero-point of zero
 		--We will need to adjust the RHS (weights) by subtracting the zero-point
 		--TODO: Test moving this adjustment step to the Python weight conversion step
-		w_zp_9 := resize(weight_zero_point,9);
+		w_zp_9 := resize(weight_zero_point, 9);
 		w0 := extract_byte_from_word(weight_word, 0);
 		w1 := extract_byte_from_word(weight_word, 1);
 		w2 := extract_byte_from_word(weight_word, 2);
 		w3 := extract_byte_from_word(weight_word, 3);
 
-		w0_adj := resize(w0,9) - w_zp_9;
-		w1_adj := resize(w1,9) - w_zp_9;
-		w2_adj := resize(w2,9) - w_zp_9;
-		w3_adj := resize(w3,9) - w_zp_9;
-		
+		w0_adj := resize(w0, 9) - w_zp_9;
+		w1_adj := resize(w1, 9) - w_zp_9;
+		w2_adj := resize(w2, 9) - w_zp_9;
+		w3_adj := resize(w3, 9) - w_zp_9;
+
 		--Multiply only the required lanes
 		p0 := (Others => '0');
 		p1 := (Others => '0');
@@ -154,15 +154,15 @@ Package Body tensor_operations_dense Is
 	--First part of requantization: get 64-bit product
 	--Based on GEMMlowp's guide
 	Function dense_requantize_product(
-		accumulator  						: signed(31 Downto 0); 
-		bias								: signed(31 Downto 0);
-		quantized_multiplier 				: signed(31 Downto 0)
-	) return signed is
+		accumulator          : signed(31 Downto 0);
+		bias                 : signed(31 Downto 0);
+		quantized_multiplier : signed(31 Downto 0)
+	) Return signed Is
 		Variable accumulator_with_bias : signed(31 Downto 0);
-		Variable product 		: signed(63 Downto 0);
-		Variable total_shift 	: Integer;
-		Variable rounding 		: signed(63 Downto 0);
-		Variable shifted 	: signed(63 Downto 0);
+		Variable product : signed(63 Downto 0);
+		Variable total_shift : Integer;
+		Variable rounding : signed(63 Downto 0);
+		Variable shifted : signed(63 Downto 0);
 	Begin
 		--Equation 7: result_quantized_value = result_zero_point +
 		--			  (lhs_scale * rhs_scale / result_scale) * int32_accumulator 
@@ -171,36 +171,36 @@ Package Body tensor_operations_dense Is
 		accumulator_with_bias := accumulator + bias;
 		product := accumulator_with_bias * quantized_multiplier;
 		Return product;
-	end function;
-		
+	End Function;
+
 	--Second part of requantization: round and shift 64-bit product
 	Function dense_requantize_clamp(
-		product  								: signed(63 Downto 0);
-		quantized_multiplier_right_shift	: unsigned(7 Downto 0)
+		product                          : signed(63 Downto 0);
+		quantized_multiplier_right_shift : unsigned(7 Downto 0)
 
-	) return signed is
-		Variable total_shift 	: Integer;
-		Variable rounding 		: signed(63 Downto 0);
-		Variable shifted 	: signed(63 Downto 0);
-		Variable shifted_32 	: signed(31 Downto 0);
-		Variable result_32  	: signed(31 Downto 0);
-		Variable result_8   	: signed(7 Downto 0);
+	) Return signed Is
+		Variable total_shift : Integer;
+		Variable rounding : signed(63 Downto 0);
+		Variable shifted : signed(63 Downto 0);
+		Variable shifted_32 : signed(31 Downto 0);
+		Variable result_32 : signed(31 Downto 0);
+		Variable result_8 : signed(7 Downto 0);
 	Begin
-		total_shift := 31 + to_integer(quantized_multiplier_right_shift);	--Quantized multiplier is in Q0.31 (it was stored in int32)
+		total_shift := 31 + to_integer(quantized_multiplier_right_shift); --Quantized multiplier is in Q0.31 (it was stored in int32)
 		--The quantized multiplier is a number in range [-1,1) stored in a int32 number. It was left shifted by 31 bits. We need to shift it right by 31
 		--to get the original multiplier back
 		--https://www.embeddedrelated.com/showarticle/1015.php#:~:text=Runtime%20calculations%2C%20on%20the%20other,point%20equivalent%20of%200.5)%20first:
 		--The right shift truncates a lot. It also floors the value (floor and ceil)
 		--13/8=1.625. 13>>3 = 1. If we add a rounding(=half the divisor), we can get a better answer
 		--(13+4)>>3 = 2
-		
-		rounding := shift_left(to_signed(1, 64), total_shift - 1);  --Number to be divided = total_shift/2
-		if (product < 0) then
-		  --apply round to abs value and then reapply sign
-		  shifted := shift_right((product) + (rounding-1), total_shift);
-		else
-		  shifted := shift_right(product + rounding, total_shift);
-		end if;
+
+		rounding := shift_left(to_signed(1, 64), total_shift - 1); --Number to be divided = total_shift/2
+		If (product < 0) Then
+			--apply round to abs value and then reapply sign
+			shifted := shift_right((product) + (rounding - 1), total_shift);
+		Else
+			shifted := shift_right(product + rounding, total_shift);
+		End If;
 		shifted_32 := resize(shifted, 32);
 		result_32 := shifted_32;
 		--Saturate to int8 range [-128, 127]
@@ -213,9 +213,7 @@ Package Body tensor_operations_dense Is
 		End If;
 
 		Return result_8;
-	end function;
-
-
+	End Function;
 	--Add bias and convert back to Q0.7 with saturation
 	--Accumulator is sum of Q0.14 products, so we need to shift right by 7 bits
 	--to convert back to Q0.7, then add bias
