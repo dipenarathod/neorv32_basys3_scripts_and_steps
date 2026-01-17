@@ -100,15 +100,23 @@ package body Ada_Ml_Library is
    end Get_Byte_From_Tensor;
 
    --Word count for a square N×N int8 tensor when 4 int8 are packed per 32-bit word
-   function Tensor_Words (N : Natural) return Natural is
-      Elements : constant Natural := N * N;
+   function Tensor_Words
+     (N : Natural; One_Dimensional : Boolean := False) return Natural
+   is
+      --Elements : constant Natural := N;
    begin
-      return (Elements + 3) / 4;
-   --Why + 3 is necessary:
-   --N*N = 9 *9  = 81 elements
-   --81/4 = 20 words, but 20 words are insufficient to hold 81 bytes
-   --84/4 = 21
-   --+3 makes it possible that even partially filled words are counted
+
+      if (One_Dimensional /= True) then
+         return (N * N + 3) / 4;
+      else
+         return (N + 3) / 4;
+      end if;
+
+      --Why + 3 is necessary:
+      --N*N = 9 *9  = 81 elements
+      --81/4 = 20 words, but 20 words are insufficient to hold 81 bytes
+      --84/4 = 21
+      --+3 makes it possible that even partially filled words are counted
    end Tensor_Words;
 
    --DIM register only reads the right-most 8 bits. The other bits are ignored. Write word
@@ -123,11 +131,11 @@ package body Ada_Ml_Library is
       Write_Reg (BASEI_Addr, Word (Unsigned_32 (Index)));
    end Set_Pool_Base_Index;
 
-   --Set index in R to write result of pooling to
-   procedure Set_Pool_Out_Index (Index : Natural) is
+   --Set index in R to write result to for pooling and dense
+   procedure Set_Out_Index (Index : Natural) is
    begin
       Write_Reg (OUTI_Addr, Word (Unsigned_32 (Index)));
-   end Set_Pool_Out_Index;
+   end Set_Out_Index;
 
    --Index in tensor to perform operation on, such as activation
    procedure Set_Word_Index (Index : Natural) is
@@ -146,6 +154,52 @@ package body Ada_Ml_Library is
    begin
       Write_Reg (SUM_Addr, Sum);
    end Set_Sum_Param;
+
+   --Set the base index in B (for from when the weights of this layer begin)
+   procedure Set_Weight_Base_Index (Index : Natural) is
+   begin
+      Write_Reg (WEIGHT_BASE_INDEX_Addr, Word (Unsigned_32 (Index)));
+   end Set_Weight_Base_Index;
+
+   --Set the bias index in C (for from when the weights of this layer begin)
+   procedure Set_Bias_Base_Index (Index : Natural) is
+   begin
+      Write_Reg (BIAS_BASE_INDEX_Addr, Word (Unsigned_32 (Index)));
+   end Set_Bias_Base_Index;
+
+   --Set number of inputs for the dense layer
+   procedure Set_N_Inputs (N : Natural) is
+   begin
+      Write_Reg (N_INPUTS_Addr, Word (Unsigned_32 (N)));
+   end Set_N_Inputs;
+
+   --Set scale for requantization
+   procedure Set_Scale_Register (Scale : Natural) is
+   begin
+      Write_Reg (SCALE_REG_Addr, Word (Unsigned_32 (Scale)));
+   end;
+
+   --Set zero point for requantization
+   procedure Set_Zero_Point (Zero_Point : Integer) is
+   begin
+      Write_Reg (ZERO_POINT_REG_Addr, Word (Unsigned_32 (Zero_Point)));
+   end;
+
+   --Set quantized multiplier for requantization
+   procedure Set_Quantized_Multiplier_Register (Multiplier : Integer) is
+   begin
+      Write_Reg
+        (QUANTIZED_MULTIPLIER_REG_Addr, Word (Unsigned_32 (Multiplier)));
+   end;
+
+   --Set right shift for quantized multiplier for requantization
+   procedure Set_Quantized_Multiplier_Right_Shift_Register
+     (Right_Shift : Natural) is
+   begin
+      Write_Reg
+        (QUANTIZED_MULTIPLIER_RIGHT_SHIFT_REG_Addr,
+         Word (Unsigned_32 (Right_Shift)));
+   end;
 
    --Perform operation
    procedure Perform_Op (Opcode : Word) is
@@ -188,6 +242,12 @@ package body Ada_Ml_Library is
    begin
       Perform_Op (OP_SOFTMAX);
    end Perform_Softmax;
+
+   --Softmax operation (mode flag controls EXP vs DIV phase)
+   procedure Perform_Dense is
+   begin
+      Perform_Op (OP_DENSE);
+   end Perform_Dense;
 
    --"/=" is the inequality operator in Ada, not !=
    --Read status_reg[0]
@@ -246,6 +306,70 @@ package body Ada_Ml_Library is
       end loop;
    end Read_Words_From_A;
 
+   procedure Write_Word_In_B (Index : Natural; Value : Word) is
+      Addr : constant System.Address :=
+        Add_Byte_Offset (BBASE_Addr, Unsigned_32 (Index) * 4);
+   begin
+      Write_Reg (Addr, Value);
+   end Write_Word_In_B;
+
+   procedure Write_Words_In_B (Src : in Word_Array) is
+      J : Natural := 0;
+   begin
+      for I in Src'Range loop
+         Write_Word_In_B (J, Src (I));
+         J := J + 1;
+      end loop;
+   end Write_Words_In_B;
+
+   function Read_Word_From_B (Index : Natural) return Word is
+      Addr : constant System.Address :=
+        Add_Byte_Offset (BBASE_Addr, Unsigned_32 (Index) * 4);
+   begin
+      return Read_Reg (Addr);
+   end Read_Word_From_B;
+
+   procedure Read_Words_From_B (Dest : out Word_Array) is
+      J : Natural := 0;
+   begin
+      for I in Dest'Range loop
+         Dest (I) := Read_Word_From_B (J);
+         J := J + 1;
+      end loop;
+   end Read_Words_From_B;
+
+   procedure Write_Word_In_C (Index : Natural; Value : Word) is
+      Addr : constant System.Address :=
+        Add_Byte_Offset (CBASE_Addr, Unsigned_32 (Index) * 4);
+   begin
+      Write_Reg (Addr, Value);
+   end Write_Word_In_C;
+
+   procedure Write_Words_In_C (Src : in Word_Array) is
+      J : Natural := 0;
+   begin
+      for I in Src'Range loop
+         Write_Word_In_C (J, Src (I));
+         J := J + 1;
+      end loop;
+   end Write_Words_In_C;
+
+   function Read_Word_From_C (Index : Natural) return Word is
+      Addr : constant System.Address :=
+        Add_Byte_Offset (CBASE_Addr, Unsigned_32 (Index) * 4);
+   begin
+      return Read_Reg (Addr);
+   end Read_Word_From_C;
+
+   procedure Read_Words_From_C (Dest : out Word_Array) is
+      J : Natural := 0;
+   begin
+      for I in Dest'Range loop
+         Dest (I) := Read_Word_From_C (J);
+         J := J + 1;
+      end loop;
+   end Read_Words_From_C;
+
    function Read_Word_From_R (Index : Natural) return Word is
       Addr : constant System.Address :=
         Add_Byte_Offset (RBASE_Addr, Unsigned_32 (Index) * 4);
@@ -266,8 +390,10 @@ package body Ada_Ml_Library is
    --Procedures to Apply ReLU and Sigmoid
    --Translated test C code
    --Sigmoid and ReLU are very similar (because they are activation functions)
-   procedure Apply_ReLU_All_Words (N : Natural) is
-      Words : constant Natural := Tensor_Words (N);
+   procedure Apply_ReLU_All_Words
+     (N : Natural; One_Dimensional : Boolean := False)
+   is
+      Words : constant Natural := Tensor_Words (N, One_Dimensional);
    begin
       for I in 0 .. Words - 1 loop
          Set_Word_Index (I);
@@ -277,9 +403,10 @@ package body Ada_Ml_Library is
       end loop;
    end Apply_ReLU_All_Words;
 
-
-   procedure Apply_Sigmoid_All_Words (N : Natural) is
-      Words : constant Natural := Tensor_Words (N);
+   procedure Apply_Sigmoid_All_Words
+     (N : Natural; One_Dimensional : Boolean := False)
+   is
+      Words : constant Natural := Tensor_Words (N, One_Dimensional);
    begin
       for I in 0 .. Words - 1 loop
          Set_Word_Index (I);
@@ -306,7 +433,7 @@ package body Ada_Ml_Library is
             Out_Index := r * Out_N + c;        --flat index into R
             -- '*Out_N' to make it a flat index
             Set_Pool_Base_Index (Base);
-            Set_Pool_Out_Index (Out_Index);
+            Set_Out_Index (Out_Index);
             Perform_Max_Pool;
             Wait_While_Busy;
             Write_Reg (CTRL_Addr, 0); --De-assert start
@@ -330,7 +457,7 @@ package body Ada_Ml_Library is
             Out_Index := r * Out_N + c;        --flat index into R
             -- '*Out_N' to make it a flat index
             Set_Pool_Base_Index (Base);
-            Set_Pool_Out_Index (Out_Index);
+            Set_Out_Index (Out_Index);
             Perform_Avg_Pool;
             Wait_While_Busy;
             Write_Reg (CTRL_Addr, 0); --De-assert start
@@ -341,12 +468,24 @@ package body Ada_Ml_Library is
    --Apply Softmax to entire N×N tensor using two-pass algorithm
    --Pass 1: Compute exponents for all elements (NPU writes to A in-place)
    --Pass 2: Ada calculates sum (inverted sum), then VHDL divides each element by sum
-   procedure Apply_Softmax_All_Words (N : Natural) is
-      Words          : constant Natural := Tensor_Words (N);
+   procedure Apply_Softmax_All_Words
+     (N : Natural; One_Dimensional : Boolean := False)
+   is
+      Words          : constant Natural := Tensor_Words (N, One_Dimensional);
       Sum            : Unsigned_32 := 0;
-      Inverted_Sum   : Unsigned_32;
+      Inverted_Sum   : Unsigned_32 := 0;
       W              : Word;
       B0, B1, B2, B3 : Unsigned_Byte;
+
+      --How many elements are actually valid in A for this softmax call
+      Total_Elements : constant Natural :=
+        (if One_Dimensional then N else N * N);
+
+      --How many words are fully valid
+      Full_Words : constant Natural := Total_Elements / 4;
+
+      --Valid bytes in the last word: 0 to 3
+      Left_Over_Bytes : constant Natural := Total_Elements mod 4;
    begin
       --Pass 1: Compute exponents (VHDL writes to A in-place)
       Set_Softmax_Mode (SOFTMAX_MODE_EXP);  --Set mode to EXP
@@ -358,27 +497,78 @@ package body Ada_Ml_Library is
          Write_Reg (CTRL_Addr, 0); --De-assert start
       end loop;
 
+      --Mask unused lanes in the last partial word (if any)
+      --Prevent extra lanes from influening  probability
+      if Left_Over_Bytes /= 0 then
+         --For a partial tail, Words = Full_Words + 1, so last word index is Full_Words
+         W := Read_Word_From_A (Full_Words);
+         Unpack_Four_Bytes (W, B0, B1, B2, B3);
+
+         case Left_Over_Bytes is
+            when 1      =>
+               B1 := 0;
+               B2 := 0;
+               B3 := 0;
+
+            when 2      =>
+               B2 := 0;
+               B3 := 0;
+
+            when 3      =>
+               B3 := 0;
+
+            when others =>
+               --errors for missizng case values
+               null;
+         end case;
+
+         W := Pack_Four_Bytes (B0, B1, B2, B3);
+         Write_Word_In_A (Full_Words, W);
+      end if;
+
       --Calculate sum here because mantaing an automatic sum register (accumulator) in the NPU is difficult
       --If the NPU accumulates the sum, then we have multiple drivers problems as the Ada program needs to reset the sum
       --It is also expensive from an LUT usage/inelegant to put sum reg write in the NPU FSM
-      for I in 0 .. Words - 1 loop
-         W := Read_Word_From_A (I);
+      --
+      --Sum only the valid elements (not the padded bytes in the last packed word).
+      if Full_Words /= 0 then
+         for I in 0 .. Full_Words - 1 loop
+            W := Read_Word_From_A (I);
+            Unpack_Four_Bytes (W, B0, B1, B2, B3);
+            Sum :=
+              Sum
+              + Unsigned_32 (B0)
+              + Unsigned_32 (B1)
+              + Unsigned_32 (B2)
+              + Unsigned_32 (B3);
+         end loop;
+      end if;
+
+      if Left_Over_Bytes /= 0 then
+         W := Read_Word_From_A (Full_Words);
          Unpack_Four_Bytes (W, B0, B1, B2, B3);
-         Sum :=
-           Sum
-           + Unsigned_32 (B0)
-           + Unsigned_32 (B1)
-           + Unsigned_32 (B2)
-           + Unsigned_32 (B3);
-      end loop;
+         case Left_Over_Bytes is
+            when 1      =>
+               Sum := Sum + Unsigned_32 (B0);
+
+            when 2      =>
+               Sum := Sum + Unsigned_32 (B0) + Unsigned_32 (B1);
+
+            when 3      =>
+               Sum :=
+                 Sum + Unsigned_32 (B0) + Unsigned_32 (B1) + Unsigned_32 (B2);
+
+            when others =>
+               --errors for missizng case values
+               null;
+         end case;
+      end if;
 
       --Calculate inverted sum: (2^16) / sum
       --This allows hardware to do fast multiplication instead of division
       if Sum > 0 then
          Inverted_Sum :=
-           (2**16) / Sum;  --Fixed-point reciprocal scaled by 2^16
-      --else
-      --   Inverted_Sum := 16#FFFF#;  --Max value if sum is somehow zero
+           (2 ** 16) / Sum;  --Fixed-point reciprocal scaled by 2^16
 
       end if;
 
@@ -393,6 +583,55 @@ package body Ada_Ml_Library is
          Write_Reg (CTRL_Addr, 0); --De-assert start
       end loop;
    end Apply_Softmax_All_Words;
+
+
+   --Dense function
+   --Computes Neurons outputs (1 output per NPU command) and stores them in R
+   procedure Apply_Dense_All_Words
+     (Inputs                           : Natural;
+      Neurons                          : Natural;
+      Weight_Base_Index                : Natural;
+      Bias_Base_Index                  : Natural;
+      Scale                            : Natural;
+      Zero_Point                       : Integer;
+      Quantized_Multiplier             : Integer;
+      Quantized_Multiplier_Right_Shift : Natural)
+   is
+      Input_Base_Index : constant Natural := 0;
+
+      W_Base  : Natural;
+      B_Index : Natural;
+   begin
+      Set_N_Inputs (Inputs); --Set number of inputs to dense layer
+      Set_Scale_Register (Scale);
+      Set_Zero_Point (Zero_Point);
+      Set_Quantized_Multiplier_Register (Quantized_Multiplier);
+      Set_Quantized_Multiplier_Right_Shift_Register
+        (Quantized_Multiplier_Right_Shift);
+      --Put_Line ("Wrote N register. Starting loop");
+      --One NPU dense command computes exactly one neuron output and writes one element to R
+      for N in 0 .. Neurons - 1 loop
+         --Per-neuron addressing
+         --The FSM loops to multiply all inputs of a neuron with the connection weights internally
+         W_Base :=
+           Weight_Base_Index
+           + (N * Inputs); --Multiple input weights for a neuron
+         B_Index := Bias_Base_Index + (N); --One bias for a neuron.
+
+         Set_Word_Index (Input_Base_Index); --A input index
+         Set_Weight_Base_Index (W_Base);    --B weight base index
+         Set_Bias_Base_Index (B_Index);       --C bias index
+         Set_Out_Index (N);                 --R output index
+         --Put_Line ("Set word index, weight base index, bias base index, and out index. Performing dense");
+         Perform_Dense;
+         --Put_Line("Started dense. Waiting now");
+         Wait_While_Busy;
+         --Put_Line ("Done waiting");
+         Write_Reg
+           (CTRL_Addr, 0); --De-assert start so next command can trigger
+      end loop;
+   end Apply_Dense_All_Words;
+
 
    --Print current register values to understand what is going on
    --should be useful (or not)
@@ -481,6 +720,7 @@ package body Ada_Ml_Library is
       end if;
    end Q07_To_Int;
 
+   --Print a 2D tensor
    procedure Print_Tensor_Q07
      (Name : String; Data : Word_Array; Dimension : Natural)
    is
@@ -535,5 +775,110 @@ package body Ada_Ml_Library is
       end loop;
       New_Line;
    end Print_Tensor_Q07;
+
+   --Print a 1D tensor (vector)
+   procedure Print_Vector_Q07
+     (Name : String; Data : Word_Array; Vector_Length : Natural)
+   is
+      B0, B1, B2, B3  : Unsigned_Byte := 0; --Bytes extracted from a word
+      Float_Val       : Float; --Float to store float representation
+      Last_Word_Index : Natural := Natural'Last; --Index of last word
+   begin
+      Put_Line (Name);
+      Put (" [");
+      for Index in 0 .. Vector_Length - 1 loop
+         --Traverse vector
+         declare
+            Word_Index : constant Natural := Index / 4;  --Word index
+            Byte_Sel   : constant Natural :=
+              Index mod 4;   --Byte index within word
+         begin
+
+            --if Word_Index /= Last_Word_Index then
+            Unpack_Four_Bytes (Data (Word_Index), B0, B1, B2, B3);
+            Last_Word_Index := Word_Index;
+            --end if;
+
+            case Byte_Sel is
+               when 0      =>
+                  Float_Val := Q07_To_Float (B0);
+
+               when 1      =>
+                  Float_Val := Q07_To_Float (B1);
+
+               when 2      =>
+                  Float_Val := Q07_To_Float (B2);
+
+               when 3      =>
+                  Float_Val := Q07_To_Float (B3);
+
+               when others =>
+                  Float_Val := 0.0;
+            end case;
+
+            Put (" ");
+            Put (Float'Image (Float_Val));
+            Put (", ");
+         end;
+      end loop;
+      Put_Line ("]");
+      New_Line;
+   end Print_Vector_Q07;
+
+   --Create a Word_Array from an Integer_Array
+   --Loops over an integer array to pack elements in an word array for writing to tensors
+   procedure Create_Word_Array_From_Integer_Array
+     (Integer_Source : in Integer_Array; Result_Word_Array : out Word_Array)
+   is
+      Result_Tensor_Words : constant Natural :=
+        Tensor_Words
+          (Integer_Source'Length, One_Dimensional => True); -- (N+3)/4
+
+      --  Result_Word_Array : Word_Array (0 .. Result_Tensor_Words - 1) :=
+      --    (others => 0);
+
+      Left_Over_Bytes : constant Natural := Integer_Source'Length mod 4;
+      Full_Words      : constant Natural :=
+        (Integer_Source'Length - Left_Over_Bytes) / 4;
+
+      W     : Word;
+      Index : Integer := 0;
+   begin
+      if Result_Word_Array'Length < Result_Tensor_Words then
+         Put_Line ("Result_Word_Array too small");
+         return;
+      end if;
+      --Full 4-byte words
+      if (Full_Words > 0) then
+         for W_Index in 0 .. Full_Words - 1 loop
+            W :=
+              Pack_Four_Bytes
+                (B0 => Int_To_Q07 (Integer_Source (Index)),
+                 B1 => Int_To_Q07 (Integer_Source (Index + 1)),
+                 B2 => Int_To_Q07 (Integer_Source (Index + 2)),
+                 B3 => Int_To_Q07 (Integer_Source (Index + 3)));
+            Result_Word_Array (W_Index) := W;
+            Index := Index + 4;
+         end loop;
+      end if;
+
+      --Leftover partial word only if needed
+      if Left_Over_Bytes /= 0 then
+         declare
+            B0 : constant Unsigned_Byte := Int_To_Q07 (Integer_Source (Index));
+            B1 : constant Unsigned_Byte :=
+              (if Left_Over_Bytes >= 2
+               then Int_To_Q07 (Integer_Source (Index + 1))
+               else 0);
+            B2 : constant Unsigned_Byte :=
+              (if Left_Over_Bytes >= 3
+               then Int_To_Q07 (Integer_Source (Index + 2))
+               else 0);
+            B3 : constant Unsigned_Byte := 0;
+         begin
+            Result_Word_Array (Full_Words) := Pack_Four_Bytes (B0, B1, B2, B3);
+         end;
+      end if;
+   end Create_Word_Array_From_Integer_Array;
 
 end Ada_Ml_Library;
